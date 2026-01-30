@@ -64,6 +64,30 @@ export default function HomeScreen() {
     }
   };
 
+  if (initialLoading) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <LinearGradient
+          colors={['#4A3463', '#FAF8F5']}
+          style={styles.headerGradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+        >
+          <View style={styles.header}>
+            <View>
+              <Text style={styles.greeting}>Salaam</Text>
+              <Text style={styles.headerTitle}>Sadaa Instrumentals</Text>
+            </View>
+          </View>
+        </LinearGradient>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#4A3463" />
+          <Text style={styles.loadingText}>Loading sacred melodies...</Text>
+        </View>
+      </View>
+    );
+  }
+
   const freeInstrumentals = instrumentals.filter(i => !i.is_premium);
   const premiumInstrumentals = instrumentals.filter(i => i.is_premium);
 
