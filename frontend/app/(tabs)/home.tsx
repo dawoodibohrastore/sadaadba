@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Dimensions,
   RefreshControl,
   FlatList,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -31,9 +32,21 @@ export default function HomeScreen() {
     fetchInstrumentals,
     fetchFeaturedInstrumentals,
     isLoading,
+    initializeApp,
   } = useAppStore();
 
-  const [refreshing, setRefreshing] = React.useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+
+  // Initialize data on mount
+  useEffect(() => {
+    const loadData = async () => {
+      setInitialLoading(true);
+      await initializeApp();
+      setInitialLoading(false);
+    };
+    loadData();
+  }, []);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
