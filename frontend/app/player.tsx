@@ -334,18 +334,11 @@ export default function PlayerScreen() {
 
       {/* Progress Bar */}
       <View style={styles.progressContainer}>
-        <TouchableOpacity 
-          style={styles.progressBar}
-          onPress={(e) => {
-            const x = e.nativeEvent.locationX;
-            const barWidth = width - 80;
-            const newPosition = (x / barWidth) * playbackDuration;
-            handleSeek(Math.max(0, Math.min(newPosition, playbackDuration)));
-          }}
-        >
-          <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
-          <View style={[styles.progressThumb, { left: `${progress * 100}%` }]} />
-        </TouchableOpacity>
+        <SeekBar 
+          progress={playbackPosition}
+          duration={playbackDuration}
+          onSeek={handleSeek}
+        />
         <View style={styles.timeContainer}>
           <Text style={styles.timeText}>{formatTime(playbackPosition)}</Text>
           <Text style={styles.timeText}>{formatTime(playbackDuration)}</Text>
