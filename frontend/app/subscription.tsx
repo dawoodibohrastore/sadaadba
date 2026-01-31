@@ -21,8 +21,8 @@ const BENEFITS = [
     description: 'Access the complete collection of sacred madeh music',
   },
   {
-    icon: 'download',
-    title: 'Offline Listening',
+    icon: 'cloud-download',
+    title: 'Offline Downloads',
     description: 'Download tracks to listen without internet',
   },
   {
