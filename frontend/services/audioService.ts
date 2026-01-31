@@ -1,8 +1,9 @@
 // Audio Service - Handles downloads and offline storage
 import * as FileSystem from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 
-const AUDIO_DIRECTORY = FileSystem.documentDirectory + 'audio/';
+const AUDIO_DIRECTORY = FileSystem.documentDirectory ? FileSystem.documentDirectory + 'audio/' : '';
 const DOWNLOADS_KEY = 'downloaded_tracks';
 
 export interface DownloadedTrack {
@@ -12,11 +13,22 @@ export interface DownloadedTrack {
   size: number;
 }
 
+// Check if downloads are supported on this platform
+export const isDownloadSupported = (): boolean => {
+  return Platform.OS !== 'web' && !!FileSystem.documentDirectory;
+};
+
 // Ensure audio directory exists
 export const ensureAudioDirectory = async () => {
-  const dirInfo = await FileSystem.getInfoAsync(AUDIO_DIRECTORY);
-  if (!dirInfo.exists) {
-    await FileSystem.makeDirectoryAsync(AUDIO_DIRECTORY, { intermediates: true });
+  if (!isDownloadSupported()) return;
+  
+  try {
+    const dirInfo = await FileSystem.getInfoAsync(AUDIO_DIRECTORY);
+    if (!dirInfo.exists) {
+      await FileSystem.makeDirectoryAsync(AUDIO_DIRECTORY, { intermediates: true });
+    }
+  } catch (error) {
+    console.error('Error creating audio directory:', error);
   }
 };
 
@@ -59,6 +71,21 @@ export const downloadAudio = async (
   audioUrl: string,
   onProgress?: (progress: number) => void
 ): Promise<DownloadedTrack | null> => {
+  // Check if downloads are supported
+  if (!isDownloadSupported()) {
+    console.log('Downloads not supported on this platform');
+    // For web, just store the URL as "downloaded"
+    const downloadedTrack: DownloadedTrack = {
+      id: trackId,
+      localUri: audioUrl, // Use remote URL on web
+      downloadedAt: new Date().toISOString(),
+      size: 0,
+    };
+    await saveDownloadedTrack(downloadedTrack);
+    onProgress?.(1);
+    return downloadedTrack;
+  }
+
   try {
     await ensureAudioDirectory();
     
@@ -70,6 +97,7 @@ export const downloadAudio = async (
     if (fileInfo.exists) {
       const downloads = await getDownloadedTracks();
       if (downloads[trackId]) {
+        onProgress?.(1);
         return downloads[trackId];
       }
     }
@@ -88,12 +116,12 @@ export const downloadAudio = async (
     const result = await downloadResumable.downloadAsync();
     
     if (result?.uri) {
-      const fileInfo = await FileSystem.getInfoAsync(result.uri);
+      const newFileInfo = await FileSystem.getInfoAsync(result.uri);
       const downloadedTrack: DownloadedTrack = {
         id: trackId,
         localUri: result.uri,
         downloadedAt: new Date().toISOString(),
-        size: (fileInfo as any).size || 0,
+        size: (newFileInfo as any).size || 0,
       };
       
       await saveDownloadedTrack(downloadedTrack);
@@ -114,9 +142,12 @@ export const deleteDownloadedAudio = async (trackId: string): Promise<boolean> =
     const track = downloads[trackId];
     
     if (track) {
-      const fileInfo = await FileSystem.getInfoAsync(track.localUri);
-      if (fileInfo.exists) {
-        await FileSystem.deleteAsync(track.localUri);
+      // Only delete file on native platforms
+      if (isDownloadSupported() && track.localUri.startsWith('file://')) {
+        const fileInfo = await FileSystem.getInfoAsync(track.localUri);
+        if (fileInfo.exists) {
+          await FileSystem.deleteAsync(track.localUri);
+        }
       }
       await removeDownloadedTrack(trackId);
       return true;
@@ -134,9 +165,16 @@ export const isTrackDownloaded = async (trackId: string): Promise<boolean> => {
   const downloads = await getDownloadedTracks();
   if (!downloads[trackId]) return false;
   
-  // Verify file still exists
-  const fileInfo = await FileSystem.getInfoAsync(downloads[trackId].localUri);
-  return fileInfo.exists;
+  // On web, just check if it's in storage
+  if (!isDownloadSupported()) return true;
+  
+  // On native, verify file still exists
+  try {
+    const fileInfo = await FileSystem.getInfoAsync(downloads[trackId].localUri);
+    return fileInfo.exists;
+  } catch {
+    return false;
+  }
 };
 
 // Get local URI for downloaded track
@@ -144,12 +182,18 @@ export const getLocalAudioUri = async (trackId: string): Promise<string | null> 
   const downloads = await getDownloadedTracks();
   const track = downloads[trackId];
   
-  if (track) {
+  if (!track) return null;
+  
+  // On web, return the stored URL
+  if (!isDownloadSupported()) return track.localUri;
+  
+  // On native, verify and return
+  try {
     const fileInfo = await FileSystem.getInfoAsync(track.localUri);
     if (fileInfo.exists) {
       return track.localUri;
     }
-  }
+  } catch {}
   
   return null;
 };
