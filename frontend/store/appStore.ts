@@ -385,6 +385,32 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ queue: tracks });
   },
 
+  setCurrentTrack: (track: Instrumental | null) => {
+    set({ currentTrack: track });
+  },
+
+  stopPlayback: async () => {
+    const { sound } = get();
+    if (sound) {
+      try {
+        await sound.stopAsync();
+        await sound.unloadAsync();
+      } catch (e) {
+        console.log('Error stopping playback:', e);
+      }
+    }
+    set({ 
+      currentTrack: null, 
+      sound: null, 
+      isPlaying: false, 
+      playbackPosition: 0,
+      playbackDuration: 0,
+      queue: [],
+      queueIndex: 0
+    });
+  },
+  },
+
   // Favorites
   fetchFavorites: async () => {
     const { user } = get();
