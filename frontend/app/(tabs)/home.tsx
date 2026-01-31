@@ -57,8 +57,6 @@ export default function HomeScreen() {
     setRefreshing(false);
   }, [selectedMood]);
 
-  const { playTrack } = useAppStore();
-
   const handleTrackPress = async (track: Instrumental) => {
     if (track.is_premium && !isSubscribed) {
       router.push('/subscription');
