@@ -22,6 +22,9 @@ export default function LibraryScreen() {
     isSubscribed,
     setCurrentTrack,
     initializeApp,
+    playTrack,
+    isTrackDownloaded,
+    downloadedTracks,
   } = useAppStore();
 
   const [isLoading, setIsLoading] = useState(true);
@@ -36,11 +39,11 @@ export default function LibraryScreen() {
     load();
   }, []);
 
-  const handleTrackPress = (track: Instrumental) => {
+  const handleTrackPress = async (track: Instrumental) => {
     if (track.is_premium && !isSubscribed) {
       router.push('/subscription');
     } else {
-      setCurrentTrack(track);
+      await playTrack(track);
       router.push('/player');
     }
   };
