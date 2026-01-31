@@ -409,7 +409,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       queueIndex: 0
     });
   },
-  },
 
   // Favorites
   fetchFavorites: async () => {
