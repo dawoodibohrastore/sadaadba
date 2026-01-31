@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,14 +6,15 @@ import {
   TouchableOpacity,
   Dimensions,
   Animated,
+  ActivityIndicator,
   Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Audio } from 'expo-av';
 import { useAppStore } from '../store/appStore';
+import Slider from '@react-native-community/slider';
 
 const { width, height } = Dimensions.get('window');
 
@@ -89,94 +90,64 @@ export default function PlayerScreen() {
   const {
     currentTrack,
     isPlaying,
-    setIsPlaying,
     playbackPosition,
-    setPlaybackPosition,
     playbackDuration,
-    setPlaybackDuration,
-    instrumentals,
-    setCurrentTrack,
+    isBuffering,
+    playTrack,
+    pauseTrack,
+    resumeTrack,
+    seekTo,
+    playNext,
+    playPrevious,
     isSubscribed,
+    downloadTrack,
+    deleteDownload,
+    isTrackDownloaded,
+    downloads,
   } = useAppStore();
 
-  const [sound, setSound] = useState<Audio.Sound | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-
-  useEffect(() => {
-    // Setup audio mode
-    Audio.setAudioModeAsync({
-      allowsRecordingIOS: false,
-      staysActiveInBackground: true,
-      playsInSilentModeIOS: true,
-      shouldDuckAndroid: true,
-      playThroughEarpieceAndroid: false,
-    });
-
-    return () => {
-      // Cleanup sound on unmount
-      if (sound) {
-        sound.unloadAsync();
-      }
-    };
-  }, []);
+  const [isDownloading, setIsDownloading] = React.useState(false);
+  const [downloadProgress, setDownloadProgress] = React.useState(0);
 
   useEffect(() => {
     if (currentTrack) {
-      // Set duration from track data (since we don't have real audio)
-      setPlaybackDuration(currentTrack.duration * 1000);
+      const downloadStatus = downloads[currentTrack.id];
+      if (downloadStatus) {
+        setIsDownloading(downloadStatus.isDownloading);
+        setDownloadProgress(downloadStatus.progress);
+      } else {
+        setIsDownloading(false);
+        setDownloadProgress(0);
+      }
     }
-  }, [currentTrack]);
-
-  // Simulate playback progress (since we have no real audio files)
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isPlaying && currentTrack) {
-      interval = setInterval(() => {
-        setPlaybackPosition(prev => {
-          const newPos = prev + 1000;
-          if (newPos >= currentTrack.duration * 1000) {
-            handleNext();
-            return 0;
-          }
-          return newPos;
-        });
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [isPlaying, currentTrack]);
+  }, [downloads, currentTrack]);
 
   const handlePlayPause = async () => {
-    setIsPlaying(!isPlaying);
+    if (isPlaying) {
+      await pauseTrack();
+    } else {
+      if (currentTrack) {
+        await resumeTrack();
+      }
+    }
   };
 
-  const handleNext = () => {
+  const handleSeek = async (value: number) => {
+    await seekTo(value);
+  };
+
+  const handleDownload = async () => {
     if (!currentTrack) return;
     
-    const accessibleTracks = isSubscribed 
-      ? instrumentals 
-      : instrumentals.filter(i => !i.is_premium);
-    
-    const currentIndex = accessibleTracks.findIndex(t => t.id === currentTrack.id);
-    const nextIndex = (currentIndex + 1) % accessibleTracks.length;
-    setCurrentTrack(accessibleTracks[nextIndex]);
-    setPlaybackPosition(0);
-  };
-
-  const handlePrevious = () => {
-    if (!currentTrack) return;
-    
-    const accessibleTracks = isSubscribed 
-      ? instrumentals 
-      : instrumentals.filter(i => !i.is_premium);
-    
-    const currentIndex = accessibleTracks.findIndex(t => t.id === currentTrack.id);
-    const prevIndex = currentIndex === 0 ? accessibleTracks.length - 1 : currentIndex - 1;
-    setCurrentTrack(accessibleTracks[prevIndex]);
-    setPlaybackPosition(0);
-  };
-
-  const handleSeek = (value: number) => {
-    setPlaybackPosition(value);
+    if (isTrackDownloaded(currentTrack.id)) {
+      // Delete download
+      await deleteDownload(currentTrack.id);
+    } else {
+      // Download track
+      setIsDownloading(true);
+      await downloadTrack(currentTrack);
+      setIsDownloading(false);
+    }
   };
 
   const formatTime = (ms: number) => {
@@ -186,8 +157,6 @@ export default function PlayerScreen() {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  const progress = playbackDuration > 0 ? playbackPosition / playbackDuration : 0;
-
   if (!currentTrack) {
     return (
       <View style={styles.container}>
@@ -195,6 +164,8 @@ export default function PlayerScreen() {
       </View>
     );
   }
+
+  const downloaded = isTrackDownloaded(currentTrack.id);
 
   return (
     <LinearGradient
@@ -206,13 +177,29 @@ export default function PlayerScreen() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
-          style={styles.closeButton}
+          style={styles.headerButton}
           onPress={() => router.back()}
         >
           <Ionicons name="chevron-down" size={28} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Now Playing</Text>
-        <View style={styles.closeButton} />
+        <TouchableOpacity
+          style={styles.headerButton}
+          onPress={handleDownload}
+          disabled={isDownloading}
+        >
+          {isDownloading ? (
+            <View style={styles.downloadProgress}>
+              <ActivityIndicator size="small" color="#C9A961" />
+            </View>
+          ) : (
+            <Ionicons 
+              name={downloaded ? "cloud-done" : "cloud-download-outline"} 
+              size={24} 
+              color={downloaded ? "#C9A961" : "#FFFFFF"} 
+            />
+          )}
+        </TouchableOpacity>
       </View>
 
       {/* Album Art / Waveform */}
@@ -223,10 +210,14 @@ export default function PlayerScreen() {
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
         >
-          <Ionicons name="musical-notes" size={80} color="rgba(255, 255, 255, 0.2)" />
+          {isBuffering ? (
+            <ActivityIndicator size="large" color="#C9A961" />
+          ) : (
+            <Ionicons name="musical-notes" size={80} color="rgba(255, 255, 255, 0.2)" />
+          )}
         </LinearGradient>
         
-        <AnimatedWaveform isPlaying={isPlaying} />
+        <AnimatedWaveform isPlaying={isPlaying && !isBuffering} />
       </View>
 
       {/* Track Info */}
@@ -242,14 +233,38 @@ export default function PlayerScreen() {
               <Text style={styles.premiumTagText}>Premium</Text>
             </View>
           )}
+          {downloaded && (
+            <View style={styles.downloadedTag}>
+              <Ionicons name="cloud-done" size={12} color="#4CAF50" />
+              <Text style={styles.downloadedTagText}>Offline</Text>
+            </View>
+          )}
         </View>
       </View>
 
       {/* Progress Bar */}
       <View style={styles.progressContainer}>
-        <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
-        </View>
+        {Platform.OS === 'web' ? (
+          <View style={styles.progressBar}>
+            <View 
+              style={[
+                styles.progressFill, 
+                { width: `${playbackDuration > 0 ? (playbackPosition / playbackDuration) * 100 : 0}%` }
+              ]} 
+            />
+          </View>
+        ) : (
+          <Slider
+            style={styles.slider}
+            minimumValue={0}
+            maximumValue={playbackDuration}
+            value={playbackPosition}
+            onSlidingComplete={handleSeek}
+            minimumTrackTintColor="#C9A961"
+            maximumTrackTintColor="rgba(255, 255, 255, 0.2)"
+            thumbTintColor="#C9A961"
+          />
+        )}
         <View style={styles.timeContainer}>
           <Text style={styles.timeText}>{formatTime(playbackPosition)}</Text>
           <Text style={styles.timeText}>{formatTime(playbackDuration)}</Text>
@@ -260,7 +275,7 @@ export default function PlayerScreen() {
       <View style={styles.controls}>
         <TouchableOpacity
           style={styles.secondaryButton}
-          onPress={handlePrevious}
+          onPress={playPrevious}
         >
           <Ionicons name="play-skip-back" size={28} color="#FFFFFF" />
         </TouchableOpacity>
@@ -269,17 +284,22 @@ export default function PlayerScreen() {
           style={styles.playButton}
           onPress={handlePlayPause}
           activeOpacity={0.8}
+          disabled={isBuffering}
         >
-          <Ionicons
-            name={isPlaying ? 'pause' : 'play'}
-            size={36}
-            color="#4A3463"
-          />
+          {isBuffering ? (
+            <ActivityIndicator size="large" color="#4A3463" />
+          ) : (
+            <Ionicons
+              name={isPlaying ? 'pause' : 'play'}
+              size={36}
+              color="#4A3463"
+            />
+          )}
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.secondaryButton}
-          onPress={handleNext}
+          onPress={playNext}
         >
           <Ionicons name="play-skip-forward" size={28} color="#FFFFFF" />
         </TouchableOpacity>
@@ -311,7 +331,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
   },
-  closeButton: {
+  headerButton: {
     width: 40,
     height: 40,
     justifyContent: 'center',
@@ -321,6 +341,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     color: 'rgba(255, 255, 255, 0.7)',
+  },
+  downloadProgress: {
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   artContainer: {
     alignItems: 'center',
@@ -357,6 +383,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 12,
     gap: 10,
+    flexWrap: 'wrap',
+    justifyContent: 'center',
   },
   moodTag: {
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
@@ -383,6 +411,20 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginLeft: 4,
   },
+  downloadedTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(76, 175, 80, 0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  downloadedTagText: {
+    color: '#4CAF50',
+    fontSize: 13,
+    fontWeight: '500',
+    marginLeft: 4,
+  },
   progressContainer: {
     paddingHorizontal: 40,
     marginTop: 32,
@@ -397,6 +439,10 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: '#C9A961',
     borderRadius: 2,
+  },
+  slider: {
+    width: '100%',
+    height: 40,
   },
   timeContainer: {
     flexDirection: 'row',
