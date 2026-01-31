@@ -3,6 +3,7 @@ import axios from 'axios';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as audioService from '../services/audioService';
 
 const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:8001';
@@ -18,23 +19,26 @@ export interface Instrumental {
   audio_url: string | null;
   thumbnail_color: string;
   file_size: number;
+  play_count: number;
   created_at: string;
 }
 
-export interface Subscription {
+export interface Playlist {
   id: string;
   user_id: string;
-  is_active: boolean;
-  plan: string;
-  price: number;
-  subscribed_at: string;
-  expires_at: string | null;
+  name: string;
+  description: string;
+  track_ids: string[];
+  cover_color: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface User {
   id: string;
   device_id: string;
   is_subscribed: boolean;
+  favorites: string[];
   created_at: string;
 }
 
@@ -53,6 +57,8 @@ interface AppState {
   // Data
   instrumentals: Instrumental[];
   featuredInstrumentals: Instrumental[];
+  favorites: Instrumental[];
+  playlists: Playlist[];
   moods: string[];
   
   // UI state
@@ -68,6 +74,12 @@ interface AppState {
   sound: Audio.Sound | null;
   isBuffering: boolean;
   
+  // Player controls
+  isLoopEnabled: boolean;
+  isShuffleEnabled: boolean;
+  queue: Instrumental[];
+  queueIndex: number;
+  
   // Download state
   downloads: Record<string, DownloadStatus>;
   downloadedTracks: Record<string, audioService.DownloadedTrack>;
@@ -78,19 +90,37 @@ interface AppState {
   fetchFeaturedInstrumentals: () => Promise<void>;
   setSelectedMood: (mood: string) => void;
   setSearchQuery: (query: string) => void;
-  setCurrentTrack: (track: Instrumental | null) => void;
-  playTrack: (track: Instrumental) => Promise<void>;
+  
+  // Player actions
+  playTrack: (track: Instrumental, queue?: Instrumental[]) => Promise<void>;
   pauseTrack: () => Promise<void>;
   resumeTrack: () => Promise<void>;
   seekTo: (position: number) => Promise<void>;
   playNext: () => Promise<void>;
   playPrevious: () => Promise<void>;
-  setIsPlaying: (playing: boolean) => void;
-  setPlaybackPosition: (position: number) => void;
-  setPlaybackDuration: (duration: number) => void;
+  toggleLoop: () => void;
+  toggleShuffle: () => void;
+  setQueue: (tracks: Instrumental[]) => void;
+  
+  // Favorites actions
+  fetchFavorites: () => Promise<void>;
+  toggleFavorite: (trackId: string) => Promise<void>;
+  isFavorite: (trackId: string) => boolean;
+  
+  // Playlist actions
+  fetchPlaylists: () => Promise<void>;
+  createPlaylist: (name: string, description?: string) => Promise<Playlist | null>;
+  deletePlaylist: (playlistId: string) => Promise<boolean>;
+  addToPlaylist: (playlistId: string, trackId: string) => Promise<boolean>;
+  removeFromPlaylist: (playlistId: string, trackId: string) => Promise<boolean>;
+  getPlaylistTracks: (playlistId: string) => Promise<Instrumental[]>;
+  
+  // Subscription actions
   subscribe: (plan?: string) => Promise<boolean>;
   restorePurchase: () => Promise<boolean>;
   checkSubscription: () => Promise<void>;
+  
+  // Download actions
   downloadTrack: (track: Instrumental) => Promise<boolean>;
   deleteDownload: (trackId: string) => Promise<boolean>;
   loadDownloadedTracks: () => Promise<void>;
@@ -103,6 +133,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   isSubscribed: false,
   instrumentals: [],
   featuredInstrumentals: [],
+  favorites: [],
+  playlists: [],
   moods: ['All', 'Calm', 'Drums', 'Spiritual', 'Soft', 'Energetic'],
   isLoading: false,
   selectedMood: 'All',
@@ -113,13 +145,16 @@ export const useAppStore = create<AppState>((set, get) => ({
   playbackDuration: 0,
   sound: null,
   isBuffering: false,
+  isLoopEnabled: false,
+  isShuffleEnabled: false,
+  queue: [],
+  queueIndex: 0,
   downloads: {},
   downloadedTracks: {},
 
   initializeApp: async () => {
     set({ isLoading: true });
     try {
-      // Configure audio mode for background playback
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
         staysActiveInBackground: true,
@@ -130,36 +165,32 @@ export const useAppStore = create<AppState>((set, get) => ({
         playThroughEarpieceAndroid: false,
       });
 
-      // Get or create device ID
       const deviceId = Constants.installationId || Device.osBuildId || `device_${Date.now()}`;
       
-      // Create or get user
-      const userResponse = await axios.post(`${API_BASE}/api/users`, {
-        device_id: deviceId
-      });
+      const userResponse = await axios.post(`${API_BASE}/api/users`, { device_id: deviceId });
       const user = userResponse.data;
       
-      // Check subscription status
       const subResponse = await axios.get(`${API_BASE}/api/subscription/status/${user.id}`);
       
-      set({ 
-        user,
-        isSubscribed: subResponse.data.is_subscribed
+      set({ user, isSubscribed: subResponse.data.is_subscribed });
+      
+      // Load saved player settings
+      const savedLoop = await AsyncStorage.getItem('isLoopEnabled');
+      const savedShuffle = await AsyncStorage.getItem('isShuffleEnabled');
+      set({
+        isLoopEnabled: savedLoop === 'true',
+        isShuffleEnabled: savedShuffle === 'true'
       });
       
-      // Seed database if needed (first time setup)
       try {
         await axios.post(`${API_BASE}/api/seed`);
-      } catch (e) {
-        // Ignore if already seeded
-      }
+      } catch (e) {}
       
-      // Load downloaded tracks
       await get().loadDownloadedTracks();
-      
-      // Fetch initial data
       await get().fetchFeaturedInstrumentals();
       await get().fetchInstrumentals();
+      await get().fetchFavorites();
+      await get().fetchPlaylists();
       
     } catch (error) {
       console.error('Failed to initialize app:', error);
@@ -186,7 +217,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       const response = await axios.get(`${API_BASE}/api/instrumentals/featured`);
       set({ featuredInstrumentals: response.data });
     } catch (error) {
-      console.error('Failed to fetch featured instrumentals:', error);
+      console.error('Failed to fetch featured:', error);
     }
   },
 
@@ -200,22 +231,22 @@ export const useAppStore = create<AppState>((set, get) => ({
     get().fetchInstrumentals(get().selectedMood, query);
   },
 
-  setCurrentTrack: (track: Instrumental | null) => {
-    set({ currentTrack: track, playbackPosition: 0 });
-  },
-
-  playTrack: async (track: Instrumental) => {
-    const { sound: currentSound, downloadedTracks } = get();
+  playTrack: async (track: Instrumental, queue?: Instrumental[]) => {
+    const { sound: currentSound, downloadedTracks, instrumentals, isSubscribed } = get();
     
     try {
-      // Unload previous sound
       if (currentSound) {
         await currentSound.unloadAsync();
       }
       
       set({ isBuffering: true, currentTrack: track, isPlaying: false });
       
-      // Check if track is downloaded locally
+      // Set queue
+      const playQueue = queue || (isSubscribed ? instrumentals : instrumentals.filter(i => !i.is_premium));
+      const queueIndex = playQueue.findIndex(t => t.id === track.id);
+      set({ queue: playQueue, queueIndex: queueIndex >= 0 ? queueIndex : 0 });
+      
+      // Get audio URL (local if downloaded, otherwise remote)
       let audioUri = track.audio_url;
       const downloaded = downloadedTracks[track.id];
       if (downloaded) {
@@ -223,18 +254,16 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
       
       if (!audioUri) {
-        console.error('No audio URL available');
         set({ isBuffering: false });
         return;
       }
       
-      // Create and load new sound
+      // Track play count
+      axios.post(`${API_BASE}/api/instrumentals/${track.id}/play`).catch(() => {});
+      
       const { sound } = await Audio.Sound.createAsync(
         { uri: audioUri },
-        { 
-          shouldPlay: true,
-          progressUpdateIntervalMillis: 500,
-        },
+        { shouldPlay: true, progressUpdateIntervalMillis: 500 },
         (status) => {
           if (status.isLoaded) {
             set({ 
@@ -244,9 +273,13 @@ export const useAppStore = create<AppState>((set, get) => ({
               isBuffering: status.isBuffering,
             });
             
-            // Auto play next when finished
             if (status.didJustFinish) {
-              get().playNext();
+              const { isLoopEnabled } = get();
+              if (isLoopEnabled) {
+                get().seekTo(0).then(() => get().resumeTrack());
+              } else {
+                get().playNext();
+              }
             }
           }
         }
@@ -285,24 +318,31 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   playNext: async () => {
-    const { currentTrack, instrumentals, isSubscribed } = get();
-    if (!currentTrack) return;
+    const { queue, queueIndex, isShuffleEnabled, isLoopEnabled, currentTrack } = get();
+    if (queue.length === 0) return;
     
-    const accessibleTracks = isSubscribed 
-      ? instrumentals 
-      : instrumentals.filter(i => !i.is_premium);
+    let nextIndex: number;
     
-    const currentIndex = accessibleTracks.findIndex(t => t.id === currentTrack.id);
-    const nextIndex = (currentIndex + 1) % accessibleTracks.length;
+    if (isShuffleEnabled) {
+      // Random track (not current)
+      let randomIndex = Math.floor(Math.random() * queue.length);
+      while (randomIndex === queueIndex && queue.length > 1) {
+        randomIndex = Math.floor(Math.random() * queue.length);
+      }
+      nextIndex = randomIndex;
+    } else {
+      nextIndex = (queueIndex + 1) % queue.length;
+    }
     
-    if (accessibleTracks[nextIndex]) {
-      await get().playTrack(accessibleTracks[nextIndex]);
+    set({ queueIndex: nextIndex });
+    if (queue[nextIndex]) {
+      await get().playTrack(queue[nextIndex], queue);
     }
   },
 
   playPrevious: async () => {
-    const { currentTrack, instrumentals, isSubscribed, playbackPosition } = get();
-    if (!currentTrack) return;
+    const { queue, queueIndex, playbackPosition, isShuffleEnabled } = get();
+    if (queue.length === 0) return;
     
     // If more than 3 seconds in, restart current track
     if (playbackPosition > 3000) {
@@ -310,30 +350,167 @@ export const useAppStore = create<AppState>((set, get) => ({
       return;
     }
     
-    const accessibleTracks = isSubscribed 
-      ? instrumentals 
-      : instrumentals.filter(i => !i.is_premium);
+    let prevIndex: number;
+    if (isShuffleEnabled) {
+      let randomIndex = Math.floor(Math.random() * queue.length);
+      while (randomIndex === queueIndex && queue.length > 1) {
+        randomIndex = Math.floor(Math.random() * queue.length);
+      }
+      prevIndex = randomIndex;
+    } else {
+      prevIndex = queueIndex === 0 ? queue.length - 1 : queueIndex - 1;
+    }
     
-    const currentIndex = accessibleTracks.findIndex(t => t.id === currentTrack.id);
-    const prevIndex = currentIndex === 0 ? accessibleTracks.length - 1 : currentIndex - 1;
-    
-    if (accessibleTracks[prevIndex]) {
-      await get().playTrack(accessibleTracks[prevIndex]);
+    set({ queueIndex: prevIndex });
+    if (queue[prevIndex]) {
+      await get().playTrack(queue[prevIndex], queue);
     }
   },
 
-  setIsPlaying: (playing: boolean) => {
-    set({ isPlaying: playing });
+  toggleLoop: () => {
+    const newValue = !get().isLoopEnabled;
+    set({ isLoopEnabled: newValue });
+    AsyncStorage.setItem('isLoopEnabled', String(newValue));
   },
 
-  setPlaybackPosition: (position: number) => {
-    set({ playbackPosition: position });
+  toggleShuffle: () => {
+    const newValue = !get().isShuffleEnabled;
+    set({ isShuffleEnabled: newValue });
+    AsyncStorage.setItem('isShuffleEnabled', String(newValue));
   },
 
-  setPlaybackDuration: (duration: number) => {
-    set({ playbackDuration: duration });
+  setQueue: (tracks: Instrumental[]) => {
+    set({ queue: tracks });
   },
 
+  // Favorites
+  fetchFavorites: async () => {
+    const { user } = get();
+    if (!user) return;
+    
+    try {
+      const response = await axios.get(`${API_BASE}/api/favorites/${user.id}`);
+      set({ favorites: response.data });
+    } catch (error) {
+      console.error('Failed to fetch favorites:', error);
+    }
+  },
+
+  toggleFavorite: async (trackId: string) => {
+    const { user, favorites } = get();
+    if (!user) return;
+    
+    const isFav = favorites.some(f => f.id === trackId);
+    
+    try {
+      if (isFav) {
+        await axios.delete(`${API_BASE}/api/favorites/${user.id}/${trackId}`);
+        set({ favorites: favorites.filter(f => f.id !== trackId) });
+      } else {
+        await axios.post(`${API_BASE}/api/favorites/${user.id}/${trackId}`);
+        const track = get().instrumentals.find(i => i.id === trackId);
+        if (track) {
+          set({ favorites: [...favorites, track] });
+        }
+      }
+    } catch (error) {
+      console.error('Failed to toggle favorite:', error);
+    }
+  },
+
+  isFavorite: (trackId: string) => {
+    return get().favorites.some(f => f.id === trackId);
+  },
+
+  // Playlists
+  fetchPlaylists: async () => {
+    const { user } = get();
+    if (!user) return;
+    
+    try {
+      const response = await axios.get(`${API_BASE}/api/playlists/${user.id}`);
+      set({ playlists: response.data });
+    } catch (error) {
+      console.error('Failed to fetch playlists:', error);
+    }
+  },
+
+  createPlaylist: async (name: string, description?: string) => {
+    const { user } = get();
+    if (!user) return null;
+    
+    try {
+      const response = await axios.post(`${API_BASE}/api/playlists`, {
+        user_id: user.id,
+        name,
+        description: description || '',
+      });
+      const newPlaylist = response.data;
+      set({ playlists: [...get().playlists, newPlaylist] });
+      return newPlaylist;
+    } catch (error) {
+      console.error('Failed to create playlist:', error);
+      return null;
+    }
+  },
+
+  deletePlaylist: async (playlistId: string) => {
+    try {
+      await axios.delete(`${API_BASE}/api/playlists/${playlistId}`);
+      set({ playlists: get().playlists.filter(p => p.id !== playlistId) });
+      return true;
+    } catch (error) {
+      console.error('Failed to delete playlist:', error);
+      return false;
+    }
+  },
+
+  addToPlaylist: async (playlistId: string, trackId: string) => {
+    try {
+      await axios.post(`${API_BASE}/api/playlists/${playlistId}/tracks/${trackId}`);
+      // Update local playlist
+      set({
+        playlists: get().playlists.map(p => 
+          p.id === playlistId 
+            ? { ...p, track_ids: [...p.track_ids, trackId] }
+            : p
+        )
+      });
+      return true;
+    } catch (error) {
+      console.error('Failed to add to playlist:', error);
+      return false;
+    }
+  },
+
+  removeFromPlaylist: async (playlistId: string, trackId: string) => {
+    try {
+      await axios.delete(`${API_BASE}/api/playlists/${playlistId}/tracks/${trackId}`);
+      set({
+        playlists: get().playlists.map(p => 
+          p.id === playlistId 
+            ? { ...p, track_ids: p.track_ids.filter(id => id !== trackId) }
+            : p
+        )
+      });
+      return true;
+    } catch (error) {
+      console.error('Failed to remove from playlist:', error);
+      return false;
+    }
+  },
+
+  getPlaylistTracks: async (playlistId: string) => {
+    try {
+      const response = await axios.get(`${API_BASE}/api/playlists/detail/${playlistId}`);
+      return response.data.tracks;
+    } catch (error) {
+      console.error('Failed to get playlist tracks:', error);
+      return [];
+    }
+  },
+
+  // Subscription
   subscribe: async (plan: string = 'monthly') => {
     const { user } = get();
     if (!user) return false;
@@ -341,7 +518,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       await axios.post(`${API_BASE}/api/subscription/subscribe`, {
         user_id: user.id,
-        plan: plan
+        plan
       });
       set({ isSubscribed: true });
       return true;
@@ -363,7 +540,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
       return false;
     } catch (error) {
-      console.error('Failed to restore purchase:', error);
       return false;
     }
   },
@@ -375,18 +551,15 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       const response = await axios.get(`${API_BASE}/api/subscription/status/${user.id}`);
       set({ isSubscribed: response.data.is_subscribed });
-    } catch (error) {
-      console.error('Failed to check subscription:', error);
-    }
+    } catch (error) {}
   },
 
+  // Downloads
   loadDownloadedTracks: async () => {
     try {
       const downloaded = await audioService.getDownloadedTracks();
       set({ downloadedTracks: downloaded });
-    } catch (error) {
-      console.error('Failed to load downloaded tracks:', error);
-    }
+    } catch (error) {}
   },
 
   downloadTrack: async (track: Instrumental) => {
@@ -426,10 +599,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         }));
         return true;
       }
-      
       return false;
     } catch (error) {
-      console.error('Failed to download track:', error);
       set((state) => ({
         downloads: {
           ...state.downloads,
@@ -455,7 +626,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
       return false;
     } catch (error) {
-      console.error('Failed to delete download:', error);
       return false;
     }
   },
