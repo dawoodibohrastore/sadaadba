@@ -9,6 +9,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, usePathname } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore } from '../store/appStore';
 
 const { width } = Dimensions.get('window');
@@ -16,6 +17,7 @@ const { width } = Dimensions.get('window');
 export default function MiniPlayer() {
   const router = useRouter();
   const pathname = usePathname();
+  const insets = useSafeAreaInsets();
   const {
     currentTrack,
     isPlaying,
@@ -25,6 +27,8 @@ export default function MiniPlayer() {
     pauseTrack,
     resumeTrack,
     playNext,
+    setCurrentTrack,
+    sound,
   } = useAppStore();
 
   // Don't show mini player on player screen or if no track
@@ -46,35 +50,54 @@ export default function MiniPlayer() {
     router.push('/player');
   };
 
+  const handleClose = async () => {
+    // Stop and unload audio
+    if (sound) {
+      try {
+        await sound.stopAsync();
+        await sound.unloadAsync();
+      } catch (e) {
+        console.log('Error stopping sound:', e);
+      }
+    }
+    // Clear current track
+    setCurrentTrack(null);
+  };
+
+  // Calculate bottom position based on tab bar height
+  const tabBarHeight = 60 + insets.bottom;
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { bottom: tabBarHeight }]}>
       {/* Progress bar at top */}
       <View style={styles.progressContainer}>
         <View style={[styles.progressBar, { width: `${progress * 100}%` }]} />
       </View>
       
-      <TouchableOpacity 
-        style={styles.content}
-        onPress={handleOpenPlayer}
-        activeOpacity={0.9}
-      >
-        <LinearGradient
-          colors={[currentTrack.thumbnail_color, '#2D1F3D']}
-          style={styles.thumbnail}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
+      <View style={styles.content}>
+        <TouchableOpacity 
+          style={styles.mainContent}
+          onPress={handleOpenPlayer}
+          activeOpacity={0.9}
         >
-          <Ionicons name="musical-note" size={16} color="rgba(255, 255, 255, 0.6)" />
-        </LinearGradient>
-        
-        <View style={styles.trackInfo}>
-          <Text style={styles.trackTitle} numberOfLines={1}>
-            {currentTrack.title}
-          </Text>
-          <Text style={styles.trackMood} numberOfLines={1}>
-            {currentTrack.mood} • {currentTrack.duration_formatted}
-          </Text>
-        </View>
+          <LinearGradient
+            colors={[currentTrack.thumbnail_color, '#2D1F3D']}
+            style={styles.thumbnail}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <Ionicons name="musical-note" size={16} color="rgba(255, 255, 255, 0.6)" />
+          </LinearGradient>
+          
+          <View style={styles.trackInfo}>
+            <Text style={styles.trackTitle} numberOfLines={1}>
+              {currentTrack.title}
+            </Text>
+            <Text style={styles.trackMood} numberOfLines={1}>
+              {currentTrack.mood} • {currentTrack.duration_formatted}
+            </Text>
+          </View>
+        </TouchableOpacity>
         
         <View style={styles.controls}>
           <TouchableOpacity 
@@ -82,11 +105,11 @@ export default function MiniPlayer() {
             onPress={handlePlayPause}
           >
             {isBuffering ? (
-              <Ionicons name="hourglass" size={24} color="#4A3463" />
+              <Ionicons name="hourglass" size={22} color="#4A3463" />
             ) : (
               <Ionicons 
                 name={isPlaying ? "pause" : "play"} 
-                size={24} 
+                size={22} 
                 color="#4A3463" 
               />
             )}
@@ -96,10 +119,17 @@ export default function MiniPlayer() {
             style={styles.controlButton}
             onPress={playNext}
           >
-            <Ionicons name="play-skip-forward" size={20} color="#4A3463" />
+            <Ionicons name="play-skip-forward" size={18} color="#4A3463" />
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.closeButton}
+            onPress={handleClose}
+          >
+            <Ionicons name="close" size={20} color="#8B8B8B" />
           </TouchableOpacity>
         </View>
-      </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -107,20 +137,19 @@ export default function MiniPlayer() {
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    bottom: 60, // Above tab bar
-    left: 0,
-    right: 0,
+    left: 8,
+    right: 8,
     backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(74, 52, 99, 0.1)',
+    borderRadius: 12,
     shadowColor: '#4A3463',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 10,
+    overflow: 'hidden',
   },
   progressContainer: {
-    height: 2,
+    height: 3,
     backgroundColor: 'rgba(74, 52, 99, 0.1)',
   },
   progressBar: {
@@ -130,19 +159,25 @@ const styles = StyleSheet.create({
   content: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
+    paddingLeft: 10,
+    paddingRight: 4,
     paddingVertical: 8,
   },
+  mainContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   thumbnail: {
-    width: 44,
-    height: 44,
+    width: 42,
+    height: 42,
     borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
   },
   trackInfo: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: 10,
     marginRight: 8,
   },
   trackTitle: {
@@ -153,17 +188,23 @@ const styles = StyleSheet.create({
   trackMood: {
     fontSize: 12,
     color: '#8B8B8B',
-    marginTop: 2,
+    marginTop: 1,
   },
   controls: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
   },
   controlButton: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  closeButton: {
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 2,
   },
 });
