@@ -586,30 +586,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 40,
     marginTop: 24,
   },
-  progressBar: {
-    height: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 3,
-    position: 'relative',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#C9A961',
-    borderRadius: 3,
-  },
-  progressThumb: {
-    position: 'absolute',
-    top: -4,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: '#C9A961',
-    marginLeft: -7,
-  },
   timeContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 8,
+    marginTop: 4,
   },
   timeText: {
     color: 'rgba(255, 255, 255, 0.6)',
