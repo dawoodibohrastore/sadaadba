@@ -352,10 +352,29 @@ export default function RingtoneTrimmerScreen() {
   const selectedDuration = endTime - startTime;
   const isValidDuration = selectedDuration >= 1000 && selectedDuration <= MAX_RINGTONE_DURATION;
 
-  if (!track) {
+  // Show loading state when track is not yet available
+  if (!trackId || !track) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
-        <Text style={styles.errorText}>Track not found</Text>
+        <LinearGradient
+          colors={['#4A3463', '#6B4D8A']}
+          style={styles.header}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <TouchableOpacity 
+            style={styles.backButton} 
+            onPress={() => router.back()}
+          >
+            <Ionicons name="close" size={28} color="#FFFFFF" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Set as Ringtone</Text>
+          <View style={styles.placeholder} />
+        </LinearGradient>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#C9A961" />
+          <Text style={styles.loadingText}>Loading track...</Text>
+        </View>
       </View>
     );
   }
