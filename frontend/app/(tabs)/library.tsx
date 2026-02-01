@@ -82,7 +82,7 @@ export default function LibraryScreen() {
   } = useAppStore();
 
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'all' | 'downloads'>('all');
+  const [activeTab, setActiveTab] = useState<'favorites' | 'playlists' | 'downloads'>('favorites');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null);
@@ -124,6 +124,7 @@ export default function LibraryScreen() {
       Alert.alert('Offline', 'Connect to the internet to download this audio.');
       return;
     }
+    
     const success = await downloadTrack(track);
     if (success) {
       Alert.alert('Downloaded', `"${track.title}" is now available offline.`);
@@ -147,18 +148,30 @@ export default function LibraryScreen() {
   };
 
   const handleDeletePlaylist = (playlistId: string, name: string) => {
-    Alert.alert('Delete Playlist', `Are you sure you want to delete "${name}"?`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => deletePlaylist(playlistId) }
-    ]);
+    Alert.alert(
+      'Delete Playlist',
+      `Are you sure you want to delete "${name}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Delete', 
+          style: 'destructive',
+          onPress: () => deletePlaylist(playlistId)
+        }
+      ]
+    );
   };
 
   const handlePlayAll = async (tracks: Instrumental[]) => {
-    const playableTracks = isOnline ? tracks : tracks.filter(t => isTrackDownloaded(t.id));
+    const playableTracks = isOnline 
+      ? tracks 
+      : tracks.filter(t => isTrackDownloaded(t.id));
+    
     if (playableTracks.length === 0) {
       Alert.alert('Offline', 'No downloaded tracks available to play offline.');
       return;
     }
+    
     if (playableTracks.length > 0) {
       await playTrack(playableTracks[0], playableTracks);
       router.push('/player');
@@ -168,6 +181,7 @@ export default function LibraryScreen() {
   const getDownloadedTracksList = (): Instrumental[] => {
     const trackIds = Object.keys(downloadedTracks);
     const tracks: Instrumental[] = [];
+    
     for (const trackId of trackIds) {
       const fromInstrumentals = instrumentals.find(i => i.id === trackId);
       if (fromInstrumentals) {
@@ -179,10 +193,76 @@ export default function LibraryScreen() {
         }
       }
     }
+    
     return tracks;
   };
 
   const downloadedTracksList = getDownloadedTracksList();
+
+  const renderTrackRow = (track: Instrumental, showDownloadButton: boolean = true) => {
+    const downloaded = isTrackDownloaded(track.id);
+    const isDownloading = downloads[track.id]?.isDownloading;
+    const downloadProgress = downloads[track.id]?.progress || 0;
+    
+    return (
+      <View key={track.id} style={styles.trackRow}>
+        <TouchableOpacity
+          style={styles.trackContent}
+          onPress={() => handleTrackPress(track)}
+          activeOpacity={0.8}
+        >
+          <LinearGradient
+            colors={[track.thumbnail_color, COLORS.cardBg]}
+            style={styles.trackThumbnail}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <Ionicons name="musical-note" size={18} color="rgba(255, 255, 255, 0.5)" />
+            {!isOnline && !downloaded && (
+              <View style={styles.offlineOverlay}>
+                <Ionicons name="cloud-offline" size={14} color="#FFFFFF" />
+              </View>
+            )}
+          </LinearGradient>
+          <View style={styles.trackInfo}>
+            <Text style={[styles.trackTitle, !isOnline && !downloaded && styles.trackTitleOffline]} numberOfLines={1}>
+              {track.title}
+            </Text>
+            <View style={styles.trackMetaRow}>
+              <Text style={styles.trackMeta}>{track.mood} • {track.duration_formatted}</Text>
+              {downloaded && (
+                <View style={styles.downloadedBadge}>
+                  <Ionicons name="checkmark-circle" size={12} color={COLORS.downloaded} />
+                  <Text style={styles.downloadedText}>Offline</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </TouchableOpacity>
+        
+        {showDownloadButton && !downloaded && (
+          <TouchableOpacity 
+            style={styles.downloadButton}
+            onPress={() => handleDownload(track)}
+            disabled={isDownloading}
+          >
+            {isDownloading ? (
+              <View style={styles.downloadingIndicator}>
+                <ActivityIndicator size="small" color={COLORS.accentBlue} />
+                <Text style={styles.downloadingText}>{Math.round(downloadProgress * 100)}%</Text>
+              </View>
+            ) : (
+              <Ionicons name="cloud-download-outline" size={22} color={COLORS.accentBlue} />
+            )}
+          </TouchableOpacity>
+        )}
+        
+        {downloaded && (
+          <Ionicons name="play" size={20} color={COLORS.accentBlue} style={styles.playIcon} />
+        )}
+      </View>
+    );
+  };
 
   if (isLoading) {
     return (
@@ -218,7 +298,10 @@ export default function LibraryScreen() {
         <View style={styles.playlistStats}>
           <Text style={styles.playlistCount}>{playlistTracks.length} tracks</Text>
           {playlistTracks.length > 0 && (
-            <TouchableOpacity style={styles.playAllButton} onPress={() => handlePlayAll(playlistTracks)}>
+            <TouchableOpacity 
+              style={styles.playAllButton}
+              onPress={() => handlePlayAll(playlistTracks)}
+            >
               <Ionicons name="play" size={16} color={COLORS.textPrimary} />
               <Text style={styles.playAllText}>Play All</Text>
             </TouchableOpacity>
@@ -233,18 +316,7 @@ export default function LibraryScreen() {
               <Text style={styles.emptySubtext}>Add tracks from the player screen</Text>
             </View>
           ) : (
-            playlistTracks.map(track => (
-              <TouchableOpacity key={track.id} style={styles.trackRow} onPress={() => handleTrackPress(track)}>
-                <LinearGradient colors={[track.thumbnail_color, COLORS.cardBg]} style={styles.trackThumbnail}>
-                  <Ionicons name="musical-note" size={18} color="rgba(255, 255, 255, 0.5)" />
-                </LinearGradient>
-                <View style={styles.trackInfo}>
-                  <Text style={styles.trackTitle} numberOfLines={1}>{track.title}</Text>
-                  <Text style={styles.trackMeta}>{track.mood} • {track.duration_formatted}</Text>
-                </View>
-                <Ionicons name="play" size={20} color={COLORS.accentBlue} />
-              </TouchableOpacity>
-            ))
+            playlistTracks.map(track => renderTrackRow(track, true))
           )}
         </ScrollView>
       </View>
@@ -255,102 +327,152 @@ export default function LibraryScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <IslamicPatternBg />
       
-      {/* Header */}
       <View style={styles.header}>
-        <View style={styles.logoContainer}>
-          <View style={styles.logoIcon}>
-            <Ionicons name="musical-notes" size={20} color={COLORS.accentGold} />
-          </View>
-          <Text style={styles.headerTitle}>Library</Text>
-        </View>
+        <Text style={styles.headerTitle}>Library</Text>
         <View style={styles.headerRight}>
           {!isOnline && (
             <View style={styles.offlineIndicator}>
-              <Ionicons name="cloud-offline" size={14} color={COLORS.offline} />
+              <Ionicons name="cloud-offline" size={16} color={COLORS.offline} />
             </View>
           )}
-          <TouchableOpacity style={styles.notificationBtn}>
-            <Ionicons name="notifications-outline" size={22} color={COLORS.textPrimary} />
-          </TouchableOpacity>
+          {!isSubscribed && (
+            <TouchableOpacity
+              style={styles.upgradeButton}
+              onPress={() => router.push('/subscription')}
+            >
+              <Ionicons name="diamond" size={14} color={COLORS.accentGold} />
+              <Text style={styles.upgradeText}>Upgrade</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
-      {/* Tabs */}
+      {!isOnline && (
+        <View style={styles.offlineBanner}>
+          <Ionicons name="cloud-offline" size={16} color={COLORS.offline} />
+          <Text style={styles.offlineBannerText}>You're offline. Showing saved data.</Text>
+        </View>
+      )}
+
+      {/* Tabs - Original 3-tab layout */}
       <View style={styles.tabs}>
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'all' && styles.activeTab]}
-          onPress={() => setActiveTab('all')}
+          style={[styles.tab, activeTab === 'favorites' && styles.activeTab]}
+          onPress={() => setActiveTab('favorites')}
         >
-          <Text style={[styles.tabText, activeTab === 'all' && styles.activeTabText]}>All</Text>
+          <Ionicons 
+            name="heart" 
+            size={18} 
+            color={activeTab === 'favorites' ? COLORS.textPrimary : COLORS.textMuted} 
+          />
+          <Text style={[styles.tabText, activeTab === 'favorites' && styles.activeTabText]}>
+            Favorites
+          </Text>
         </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'playlists' && styles.activeTab]}
+          onPress={() => setActiveTab('playlists')}
+        >
+          <Ionicons 
+            name="list" 
+            size={18} 
+            color={activeTab === 'playlists' ? COLORS.textPrimary : COLORS.textMuted} 
+          />
+          <Text style={[styles.tabText, activeTab === 'playlists' && styles.activeTabText]}>
+            Playlists
+          </Text>
+        </TouchableOpacity>
+        
         <TouchableOpacity
           style={[styles.tab, activeTab === 'downloads' && styles.activeTab]}
           onPress={() => setActiveTab('downloads')}
         >
-          <Text style={[styles.tabText, activeTab === 'downloads' && styles.activeTabText]}>Downloads</Text>
+          <Ionicons 
+            name="cloud-done" 
+            size={18} 
+            color={activeTab === 'downloads' ? COLORS.textPrimary : COLORS.textMuted} 
+          />
+          <Text style={[styles.tabText, activeTab === 'downloads' && styles.activeTabText]}>
+            Downloads
+          </Text>
         </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {activeTab === 'all' ? (
-          <>
-            {/* Playlists Section */}
-            <Text style={styles.sectionTitle}>Playlists</Text>
-            
-            {/* Create New Playlist Card */}
-            <TouchableOpacity style={styles.createPlaylistCard} onPress={() => setShowCreateModal(true)}>
-              <View style={styles.createPlaylistIconContainer}>
+        {/* Favorites Tab */}
+        {activeTab === 'favorites' && (
+          <View>
+            {favorites.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Ionicons name="heart-outline" size={48} color={COLORS.textMuted} />
+                <Text style={styles.emptyText}>No favorites yet</Text>
+                <Text style={styles.emptySubtext}>Tap the heart icon on a track to add it here</Text>
+              </View>
+            ) : (
+              <>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionCount}>{favorites.length} tracks</Text>
+                  <TouchableOpacity 
+                    style={styles.playAllSmall}
+                    onPress={() => handlePlayAll(favorites)}
+                  >
+                    <Ionicons name="play" size={14} color={COLORS.accentBlue} />
+                    <Text style={styles.playAllSmallText}>Play All</Text>
+                  </TouchableOpacity>
+                </View>
+                {favorites.map(track => renderTrackRow(track, true))}
+              </>
+            )}
+          </View>
+        )}
+
+        {/* Playlists Tab */}
+        {activeTab === 'playlists' && (
+          <View>
+            <TouchableOpacity 
+              style={styles.createPlaylistButton}
+              onPress={() => setShowCreateModal(true)}
+            >
+              <View style={styles.createPlaylistIcon}>
                 <Ionicons name="add" size={24} color={COLORS.textPrimary} />
               </View>
-              <View style={styles.createPlaylistInfo}>
-                <Text style={styles.createPlaylistTitle}>Create A New Playlist</Text>
-                <Text style={styles.createPlaylistSubtext}>Add tracks to create a new playlist</Text>
-              </View>
+              <Text style={styles.createPlaylistText}>Create New Playlist</Text>
             </TouchableOpacity>
 
-            {/* Favourites Card */}
-            <TouchableOpacity 
-              style={styles.favouritesCard}
-              onPress={() => {
-                if (favorites.length > 0) handlePlayAll(favorites);
-              }}
-            >
-              <View style={styles.favouritesIconContainer}>
-                <Ionicons name="heart" size={24} color={COLORS.textPrimary} />
+            {playlists.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Ionicons name="albums-outline" size={48} color={COLORS.textMuted} />
+                <Text style={styles.emptyText}>No playlists yet</Text>
+                <Text style={styles.emptySubtext}>Create your first playlist above</Text>
               </View>
-              <View style={styles.favouritesInfo}>
-                <Text style={styles.favouritesTitle}>Favourites</Text>
-                <Text style={styles.favouritesSubtext}>{favorites.length} tracks</Text>
-              </View>
-            </TouchableOpacity>
+            ) : (
+              playlists.map((playlist) => (
+                <TouchableOpacity
+                  key={playlist.id}
+                  style={styles.playlistCard}
+                  onPress={() => handlePlaylistPress(playlist)}
+                >
+                  <LinearGradient
+                    colors={[playlist.cover_color, COLORS.cardBg]}
+                    style={styles.playlistCover}
+                  >
+                    <Ionicons name="musical-notes" size={24} color="rgba(255, 255, 255, 0.5)" />
+                  </LinearGradient>
+                  <View style={styles.playlistInfo}>
+                    <Text style={styles.playlistName}>{playlist.name}</Text>
+                    <Text style={styles.playlistTrackCount}>{playlist.track_ids.length} tracks</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={COLORS.textMuted} />
+                </TouchableOpacity>
+              ))
+            )}
+          </View>
+        )}
 
-            {/* User Playlists */}
-            {playlists.map((playlist) => (
-              <TouchableOpacity
-                key={playlist.id}
-                style={styles.playlistCard}
-                onPress={() => handlePlaylistPress(playlist)}
-              >
-                <LinearGradient colors={[playlist.cover_color, COLORS.cardBg]} style={styles.playlistCover}>
-                  <Ionicons name="musical-notes" size={20} color="rgba(255, 255, 255, 0.5)" />
-                </LinearGradient>
-                <View style={styles.playlistInfo}>
-                  <Text style={styles.playlistName}>{playlist.name}</Text>
-                  <Text style={styles.playlistTrackCount}>{playlist.track_ids.length} tracks</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color={COLORS.textMuted} />
-              </TouchableOpacity>
-            ))}
-
-            {/* View All Button */}
-            <TouchableOpacity style={styles.viewAllButton}>
-              <Text style={styles.viewAllText}>View All</Text>
-              <Ionicons name="arrow-forward" size={16} color={COLORS.textSecondary} />
-            </TouchableOpacity>
-          </>
-        ) : (
-          <>
-            {/* Downloads Section */}
+        {/* Downloads Tab */}
+        {activeTab === 'downloads' && (
+          <View>
             {downloadedTracksList.length === 0 ? (
               <View style={styles.emptyContainer}>
                 <Ionicons name="cloud-download-outline" size={48} color={COLORS.textMuted} />
@@ -359,36 +481,25 @@ export default function LibraryScreen() {
               </View>
             ) : (
               <>
-                <View style={styles.downloadsHeader}>
-                  <Text style={styles.downloadsCount}>{downloadedTracksList.length} tracks available offline</Text>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionCount}>{downloadedTracksList.length} tracks available offline</Text>
                 </View>
-                {downloadedTracksList.map(track => (
-                  <TouchableOpacity key={track.id} style={styles.trackRow} onPress={() => handleTrackPress(track)}>
-                    <LinearGradient colors={[track.thumbnail_color, COLORS.cardBg]} style={styles.trackThumbnail}>
-                      <Ionicons name="musical-note" size={18} color="rgba(255, 255, 255, 0.5)" />
-                    </LinearGradient>
-                    <View style={styles.trackInfo}>
-                      <Text style={styles.trackTitle} numberOfLines={1}>{track.title}</Text>
-                      <View style={styles.trackMetaRow}>
-                        <Text style={styles.trackMeta}>{track.mood} • {track.duration_formatted}</Text>
-                        <View style={styles.downloadedBadge}>
-                          <Ionicons name="checkmark-circle" size={12} color={COLORS.downloaded} />
-                          <Text style={styles.downloadedText}>Offline</Text>
-                        </View>
-                      </View>
-                    </View>
-                    <Ionicons name="play" size={20} color={COLORS.accentBlue} />
-                  </TouchableOpacity>
-                ))}
+                {downloadedTracksList.map(track => renderTrackRow(track, false))}
               </>
             )}
-          </>
+          </View>
         )}
+
         <View style={styles.bottomSpacing} />
       </ScrollView>
 
       {/* Create Playlist Modal */}
-      <Modal visible={showCreateModal} animationType="fade" transparent={true} onRequestClose={() => setShowCreateModal(false)}>
+      <Modal
+        visible={showCreateModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowCreateModal(false)}
+      >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Create Playlist</Text>
@@ -401,10 +512,19 @@ export default function LibraryScreen() {
               autoFocus
             />
             <View style={styles.modalButtons}>
-              <TouchableOpacity style={styles.modalCancel} onPress={() => { setNewPlaylistName(''); setShowCreateModal(false); }}>
+              <TouchableOpacity 
+                style={styles.modalCancel}
+                onPress={() => {
+                  setNewPlaylistName('');
+                  setShowCreateModal(false);
+                }}
+              >
                 <Text style={styles.modalCancelText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.modalCreate} onPress={handleCreatePlaylist}>
+              <TouchableOpacity 
+                style={styles.modalCreate}
+                onPress={handleCreatePlaylist}
+              >
                 <Text style={styles.modalCreateText}>Create</Text>
               </TouchableOpacity>
             </View>
@@ -429,25 +549,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 12,
-    zIndex: 10,
-  },
-  logoContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  logoIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(201, 169, 97, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 10,
+    paddingTop: 16,
+    paddingBottom: 8,
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: '600',
     color: COLORS.textPrimary,
   },
@@ -460,174 +566,122 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(255, 152, 0, 0.2)',
+    backgroundColor: 'rgba(255, 152, 0, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  notificationBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
+  upgradeButton: {
+    flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: 'rgba(201, 169, 97, 0.15)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
+  },
+  upgradeText: {
+    color: COLORS.accentGold,
+    fontSize: 13,
+    fontWeight: '600',
+    marginLeft: 6,
+  },
+  offlineBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 152, 0, 0.1)',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginHorizontal: 20,
+    marginBottom: 8,
+    borderRadius: 8,
+    gap: 8,
+  },
+  offlineBannerText: {
+    flex: 1,
+    fontSize: 13,
+    color: COLORS.offline,
   },
   tabs: {
     flexDirection: 'row',
     paddingHorizontal: 20,
     marginTop: 8,
-    gap: 10,
+    gap: 8,
   },
   tab: {
-    paddingHorizontal: 20,
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: 10,
-    borderRadius: 20,
-    backgroundColor: COLORS.buttonSecondary,
+    borderRadius: 10,
+    backgroundColor: COLORS.cardBg,
+    gap: 6,
   },
   activeTab: {
     backgroundColor: COLORS.accentBlue,
   },
   tabText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '500',
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
   },
   activeTabText: {
     color: COLORS.textPrimary,
   },
   content: {
     flex: 1,
-    marginTop: 20,
+    marginTop: 16,
     paddingHorizontal: 20,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: COLORS.textPrimary,
-    marginBottom: 16,
-  },
-  createPlaylistCard: {
+  sectionHeader: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: COLORS.cardBg,
-    padding: 14,
-    borderRadius: 12,
     marginBottom: 12,
   },
-  createPlaylistIconContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 10,
-    backgroundColor: COLORS.accentBlue,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  createPlaylistInfo: {
-    flex: 1,
-    marginLeft: 14,
-  },
-  createPlaylistTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: COLORS.textPrimary,
-  },
-  createPlaylistSubtext: {
-    fontSize: 13,
-    color: COLORS.textMuted,
-    marginTop: 2,
-  },
-  favouritesCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.cardBg,
-    padding: 14,
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  favouritesIconContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 10,
-    backgroundColor: COLORS.accentRed,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  favouritesInfo: {
-    flex: 1,
-    marginLeft: 14,
-  },
-  favouritesTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: COLORS.textPrimary,
-  },
-  favouritesSubtext: {
-    fontSize: 13,
-    color: COLORS.textMuted,
-    marginTop: 2,
-  },
-  playlistCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.cardBg,
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 10,
-  },
-  playlistCover: {
-    width: 50,
-    height: 50,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  playlistInfo: {
-    flex: 1,
-    marginLeft: 14,
-  },
-  playlistName: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: COLORS.textPrimary,
-  },
-  playlistTrackCount: {
-    fontSize: 13,
-    color: COLORS.textMuted,
-    marginTop: 2,
-  },
-  viewAllButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.buttonSecondary,
-    paddingVertical: 12,
-    borderRadius: 10,
-    marginTop: 8,
-    gap: 8,
-  },
-  viewAllText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: COLORS.textSecondary,
-  },
-  downloadsHeader: {
-    marginBottom: 16,
-  },
-  downloadsCount: {
+  sectionCount: {
     fontSize: 14,
     color: COLORS.textMuted,
+  },
+  playAllSmall: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  playAllSmallText: {
+    fontSize: 14,
+    color: COLORS.accentBlue,
+    fontWeight: '500',
   },
   trackRow: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.cardBg,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingVertical: 8,
+    paddingLeft: 10,
+    paddingRight: 8,
     borderRadius: 10,
     marginBottom: 8,
+  },
+  trackContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   trackThumbnail: {
     width: 44,
     height: 44,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  offlineOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
@@ -640,6 +694,9 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500',
     color: COLORS.textPrimary,
+  },
+  trackTitleOffline: {
+    color: COLORS.textMuted,
   },
   trackMetaRow: {
     flexDirection: 'row',
@@ -661,6 +718,23 @@ const styles = StyleSheet.create({
     color: COLORS.downloaded,
     fontWeight: '500',
   },
+  downloadButton: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  downloadingIndicator: {
+    alignItems: 'center',
+  },
+  downloadingText: {
+    fontSize: 9,
+    color: COLORS.accentBlue,
+    marginTop: 2,
+  },
+  playIcon: {
+    marginLeft: 8,
+  },
   emptyContainer: {
     alignItems: 'center',
     paddingVertical: 60,
@@ -677,7 +751,57 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: 'center',
   },
-  // Playlist Detail Styles
+  createPlaylistButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.cardBg,
+    padding: 14,
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  createPlaylistIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    backgroundColor: COLORS.accentBlue,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  createPlaylistText: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: COLORS.accentBlue,
+    marginLeft: 12,
+  },
+  playlistCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.cardBg,
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 10,
+  },
+  playlistCover: {
+    width: 52,
+    height: 52,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  playlistInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  playlistName: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: COLORS.textPrimary,
+  },
+  playlistTrackCount: {
+    fontSize: 13,
+    color: COLORS.textMuted,
+    marginTop: 2,
+  },
   playlistHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -690,22 +814,6 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '600',
     color: COLORS.textPrimary,
-  },
-  offlineBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 152, 0, 0.15)',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    marginHorizontal: 20,
-    marginBottom: 8,
-    borderRadius: 8,
-    gap: 8,
-  },
-  offlineBannerText: {
-    flex: 1,
-    fontSize: 13,
-    color: COLORS.offline,
   },
   playlistStats: {
     flexDirection: 'row',
@@ -737,10 +845,9 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 20,
   },
-  // Modal Styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
   },
