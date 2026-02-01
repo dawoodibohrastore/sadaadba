@@ -48,7 +48,14 @@ export default function SearchScreen() {
   const handleTrackPress = async (track: Instrumental) => {
     Keyboard.dismiss();
     if (track.is_premium && !isSubscribed) {
-      router.push('/subscription');
+      // Play preview for premium tracks if preview is available
+      if (track.preview_start !== null && track.preview_end !== null) {
+        await playPreview(track);
+        router.push('/preview');
+      } else {
+        // No preview available, go to subscription page
+        router.push('/subscription');
+      }
     } else {
       await playTrack(track);
       router.push('/player');
