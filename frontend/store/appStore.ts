@@ -2,10 +2,12 @@ import { create } from 'zustand';
 import axios from 'axios';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
-import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
+import { Platform } from 'react-native';
+import TrackPlayer, { State, Event, RepeatMode } from 'react-native-track-player';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as audioService from '../services/audioService';
 import { checkIsOnline, subscribeToNetworkChanges } from '../services/networkService';
+import { setupPlayer, formatTrack } from '../services/playbackService';
 
 const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:8001';
 
