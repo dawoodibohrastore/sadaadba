@@ -387,98 +387,154 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   playTrack: async (track: Instrumental, queue?: Instrumental[]) => {
-    const { sound: currentSound, downloadedTracks, instrumentals, isSubscribed, isOnline } = get();
+    const { downloadedTracks, instrumentals, isSubscribed, isOnline, isPlayerReady } = get();
     
     // Check if track can be played
     const isDownloaded = !!downloadedTracks[track.id];
     
     if (!isDownloaded && !isOnline) {
       // Can't play - not downloaded and offline
+      set({ playbackError: 'Internet connection required to play this audio.' });
       return;
     }
     
     try {
-      if (currentSound) {
-        await currentSound.unloadAsync();
-      }
-      
-      set({ isBuffering: true, currentTrack: track, isPlaying: false });
+      set({ isBuffering: true, currentTrack: track, isPlaying: false, playbackError: null });
       
       const playQueue = queue || (isSubscribed ? instrumentals : instrumentals.filter(i => !i.is_premium));
       const queueIndex = playQueue.findIndex(t => t.id === track.id);
       set({ queue: playQueue, queueIndex: queueIndex >= 0 ? queueIndex : 0 });
-      
-      // Get audio URL (local if downloaded, otherwise remote)
-      let audioUri = track.audio_url;
-      const downloaded = downloadedTracks[track.id];
-      if (downloaded) {
-        audioUri = downloaded.localUri;
-      }
-      
-      if (!audioUri) {
-        set({ isBuffering: false });
-        return;
-      }
       
       // Track play count (only when online)
       if (isOnline) {
         axios.post(`${API_BASE}/api/instrumentals/${track.id}/play`).catch(() => {});
       }
       
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: audioUri },
-        { shouldPlay: true, progressUpdateIntervalMillis: 500 },
-        (status) => {
-          if (status.isLoaded) {
-            set({ 
-              playbackPosition: status.positionMillis,
-              playbackDuration: status.durationMillis || track.duration * 1000,
-              isPlaying: status.isPlaying,
-              isBuffering: status.isBuffering,
-            });
-            
-            if (status.didJustFinish) {
-              const { isLoopEnabled } = get();
-              if (isLoopEnabled) {
-                get().seekTo(0).then(() => get().resumeTrack());
-              } else {
-                get().playNext();
+      // Use TrackPlayer on native platforms
+      if (Platform.OS !== 'web' && isPlayerReady) {
+        // Reset the queue
+        await TrackPlayer.reset();
+        
+        // Format tracks for the queue
+        const formattedQueue = playQueue.map((t) => {
+          const downloaded = downloadedTracks[t.id];
+          const localUri = downloaded?.localUri;
+          return formatTrack(t, localUri);
+        });
+        
+        // Add all tracks to the queue
+        await TrackPlayer.add(formattedQueue);
+        
+        // Skip to the requested track
+        if (queueIndex > 0) {
+          await TrackPlayer.skip(queueIndex);
+        }
+        
+        // Start playback
+        await TrackPlayer.play();
+        
+        set({ isPlaying: true, isBuffering: false });
+      } else {
+        // Web fallback using Audio API
+        const { Audio } = await import('expo-av');
+        
+        // Get audio URL (local if downloaded, otherwise remote)
+        let audioUri = track.audio_url;
+        const downloaded = downloadedTracks[track.id];
+        if (downloaded) {
+          audioUri = downloaded.localUri;
+        }
+        
+        if (!audioUri) {
+          set({ isBuffering: false });
+          return;
+        }
+        
+        // Unload previous sound if exists
+        const prevState = get() as any;
+        if (prevState._webSound) {
+          await prevState._webSound.unloadAsync();
+        }
+        
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: audioUri },
+          { shouldPlay: true, progressUpdateIntervalMillis: 500 },
+          (status: any) => {
+            if (status.isLoaded) {
+              set({ 
+                playbackPosition: status.positionMillis,
+                playbackDuration: status.durationMillis || track.duration * 1000,
+                isPlaying: status.isPlaying,
+                isBuffering: status.isBuffering,
+              });
+              
+              if (status.didJustFinish) {
+                const { isLoopEnabled } = get();
+                if (isLoopEnabled) {
+                  get().seekTo(0).then(() => get().resumeTrack());
+                } else {
+                  get().playNext();
+                }
               }
             }
           }
-        }
-      );
-      
-      set({ sound, isPlaying: true, isBuffering: false });
+        );
+        
+        // Store web sound reference
+        (set as any)({ _webSound: sound });
+        set({ isPlaying: true, isBuffering: false });
+      }
       
     } catch (error) {
       console.error('Error playing track:', error);
-      set({ isBuffering: false, isPlaying: false });
+      set({ isBuffering: false, isPlaying: false, playbackError: 'Failed to play audio.' });
     }
   },
 
   pauseTrack: async () => {
-    const { sound } = get();
-    if (sound) {
-      await sound.pauseAsync();
-      set({ isPlaying: false });
+    if (Platform.OS !== 'web') {
+      try {
+        await TrackPlayer.pause();
+      } catch (e) {}
+    } else {
+      // Web fallback
+      const state = get() as any;
+      if (state._webSound) {
+        await state._webSound.pauseAsync();
+      }
     }
+    set({ isPlaying: false });
   },
 
   resumeTrack: async () => {
-    const { sound } = get();
-    if (sound) {
-      await sound.playAsync();
-      set({ isPlaying: true });
+    if (Platform.OS !== 'web') {
+      try {
+        await TrackPlayer.play();
+      } catch (e) {}
+    } else {
+      // Web fallback
+      const state = get() as any;
+      if (state._webSound) {
+        await state._webSound.playAsync();
+      }
     }
+    set({ isPlaying: true });
   },
 
   seekTo: async (position: number) => {
-    const { sound } = get();
-    if (sound) {
-      await sound.setPositionAsync(position);
-      set({ playbackPosition: position });
+    if (Platform.OS !== 'web') {
+      try {
+        // TrackPlayer uses seconds
+        await TrackPlayer.seekTo(position / 1000);
+      } catch (e) {}
+    } else {
+      // Web fallback
+      const state = get() as any;
+      if (state._webSound) {
+        await state._webSound.setPositionAsync(position);
+      }
     }
+    set({ playbackPosition: position });
   },
 
   playNext: async () => {
