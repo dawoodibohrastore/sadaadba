@@ -8,7 +8,6 @@ import {
   ActivityIndicator,
   Modal,
   TextInput,
-  FlatList,
   Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -27,11 +26,15 @@ export default function LibraryScreen() {
     playTrack,
     favorites,
     playlists,
-    fetchPlaylists,
     createPlaylist,
     deletePlaylist,
     getPlaylistTracks,
     downloadedTracks,
+    isOnline,
+    downloadTrack,
+    canPlayTrack,
+    isTrackDownloaded,
+    downloads,
   } = useAppStore();
 
   const [isLoading, setIsLoading] = useState(true);
@@ -52,11 +55,31 @@ export default function LibraryScreen() {
   }, []);
 
   const handleTrackPress = async (track: Instrumental) => {
+    // Check if track can be played
+    const { canPlay, reason } = canPlayTrack(track.id);
+    
+    if (!canPlay) {
+      Alert.alert('Offline', reason || 'Cannot play this track');
+      return;
+    }
+    
     if (track.is_premium && !isSubscribed) {
       router.push('/subscription');
     } else {
       await playTrack(track);
       router.push('/player');
+    }
+  };
+
+  const handleDownload = async (track: Instrumental) => {
+    if (!isOnline) {
+      Alert.alert('Offline', 'Connect to the internet to download this audio.');
+      return;
+    }
+    
+    const success = await downloadTrack(track);
+    if (success) {
+      Alert.alert('Downloaded', `"${track.title}" is now available offline.`);
     }
   };
 
@@ -90,36 +113,90 @@ export default function LibraryScreen() {
   };
 
   const handlePlayAll = async (tracks: Instrumental[]) => {
-    if (tracks.length > 0) {
-      await playTrack(tracks[0], tracks);
+    // Filter to only playable tracks when offline
+    const playableTracks = isOnline 
+      ? tracks 
+      : tracks.filter(t => isTrackDownloaded(t.id));
+    
+    if (playableTracks.length === 0) {
+      Alert.alert('Offline', 'No downloaded tracks available to play offline.');
+      return;
+    }
+    
+    if (playableTracks.length > 0) {
+      await playTrack(playableTracks[0], playableTracks);
       router.push('/player');
     }
   };
 
   const downloadedTracksList = instrumentals.filter(i => downloadedTracks[i.id]);
 
-  const renderTrackRow = (track: Instrumental) => (
-    <TouchableOpacity
-      key={track.id}
-      style={styles.trackRow}
-      onPress={() => handleTrackPress(track)}
-      activeOpacity={0.8}
-    >
-      <LinearGradient
-        colors={[track.thumbnail_color, '#2D1F3D']}
-        style={styles.trackThumbnail}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <Ionicons name="musical-note" size={18} color="rgba(255, 255, 255, 0.5)" />
-      </LinearGradient>
-      <View style={styles.trackInfo}>
-        <Text style={styles.trackTitle} numberOfLines={1}>{track.title}</Text>
-        <Text style={styles.trackMeta}>{track.mood} • {track.duration_formatted}</Text>
+  const renderTrackRow = (track: Instrumental, showDownloadButton: boolean = true) => {
+    const downloaded = isTrackDownloaded(track.id);
+    const isDownloading = downloads[track.id]?.isDownloading;
+    const downloadProgress = downloads[track.id]?.progress || 0;
+    
+    return (
+      <View key={track.id} style={styles.trackRow}>
+        <TouchableOpacity
+          style={styles.trackContent}
+          onPress={() => handleTrackPress(track)}
+          activeOpacity={0.8}
+        >
+          <LinearGradient
+            colors={[track.thumbnail_color, '#2D1F3D']}
+            style={styles.trackThumbnail}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <Ionicons name="musical-note" size={18} color="rgba(255, 255, 255, 0.5)" />
+            {/* Show offline indicator */}
+            {!isOnline && !downloaded && (
+              <View style={styles.offlineOverlay}>
+                <Ionicons name="cloud-offline" size={14} color="#FFFFFF" />
+              </View>
+            )}
+          </LinearGradient>
+          <View style={styles.trackInfo}>
+            <Text style={[styles.trackTitle, !isOnline && !downloaded && styles.trackTitleOffline]} numberOfLines={1}>
+              {track.title}
+            </Text>
+            <View style={styles.trackMetaRow}>
+              <Text style={styles.trackMeta}>{track.mood} • {track.duration_formatted}</Text>
+              {downloaded && (
+                <View style={styles.downloadedBadge}>
+                  <Ionicons name="checkmark-circle" size={12} color="#4CAF50" />
+                  <Text style={styles.downloadedText}>Offline</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </TouchableOpacity>
+        
+        {/* Download button - always visible */}
+        {showDownloadButton && !downloaded && (
+          <TouchableOpacity 
+            style={styles.downloadButton}
+            onPress={() => handleDownload(track)}
+            disabled={isDownloading}
+          >
+            {isDownloading ? (
+              <View style={styles.downloadingIndicator}>
+                <ActivityIndicator size="small" color="#4A3463" />
+                <Text style={styles.downloadingText}>{Math.round(downloadProgress * 100)}%</Text>
+              </View>
+            ) : (
+              <Ionicons name="cloud-download-outline" size={22} color="#4A3463" />
+            )}
+          </TouchableOpacity>
+        )}
+        
+        {downloaded && (
+          <Ionicons name="play" size={20} color="#4A3463" style={styles.playIcon} />
+        )}
       </View>
-      <Ionicons name="play" size={20} color="#4A3463" />
-    </TouchableOpacity>
-  );
+    );
+  };
 
   if (isLoading) {
     return (
@@ -143,6 +220,14 @@ export default function LibraryScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Offline banner in playlist */}
+        {!isOnline && (
+          <View style={styles.offlineBanner}>
+            <Ionicons name="cloud-offline" size={16} color="#FF9800" />
+            <Text style={styles.offlineBannerText}>You're offline. Only downloaded tracks can be played.</Text>
+          </View>
+        )}
+
         <View style={styles.playlistStats}>
           <Text style={styles.playlistCount}>{playlistTracks.length} tracks</Text>
           {playlistTracks.length > 0 && (
@@ -164,7 +249,7 @@ export default function LibraryScreen() {
               <Text style={styles.emptySubtext}>Add tracks from the player screen</Text>
             </View>
           ) : (
-            playlistTracks.map(renderTrackRow)
+            playlistTracks.map(track => renderTrackRow(track, true))
           )}
         </ScrollView>
       </View>
@@ -175,16 +260,31 @@ export default function LibraryScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Library</Text>
-        {!isSubscribed && (
-          <TouchableOpacity
-            style={styles.upgradeButton}
-            onPress={() => router.push('/subscription')}
-          >
-            <Ionicons name="diamond" size={14} color="#C9A961" />
-            <Text style={styles.upgradeText}>Upgrade</Text>
-          </TouchableOpacity>
-        )}
+        <View style={styles.headerRight}>
+          {!isOnline && (
+            <View style={styles.offlineIndicator}>
+              <Ionicons name="cloud-offline" size={16} color="#FF9800" />
+            </View>
+          )}
+          {!isSubscribed && (
+            <TouchableOpacity
+              style={styles.upgradeButton}
+              onPress={() => router.push('/subscription')}
+            >
+              <Ionicons name="diamond" size={14} color="#C9A961" />
+              <Text style={styles.upgradeText}>Upgrade</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
+
+      {/* Offline Banner */}
+      {!isOnline && (
+        <View style={styles.offlineBanner}>
+          <Ionicons name="cloud-offline" size={16} color="#FF9800" />
+          <Text style={styles.offlineBannerText}>You're offline. Showing saved data.</Text>
+        </View>
+      )}
 
       {/* Tabs */}
       <View style={styles.tabs}>
@@ -253,7 +353,7 @@ export default function LibraryScreen() {
                     <Text style={styles.playAllSmallText}>Play All</Text>
                   </TouchableOpacity>
                 </View>
-                {favorites.map(renderTrackRow)}
+                {favorites.map(track => renderTrackRow(track, true))}
               </>
             )}
           </View>
@@ -314,9 +414,9 @@ export default function LibraryScreen() {
             ) : (
               <>
                 <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionCount}>{downloadedTracksList.length} tracks downloaded</Text>
+                  <Text style={styles.sectionCount}>{downloadedTracksList.length} tracks available offline</Text>
                 </View>
-                {downloadedTracksList.map(renderTrackRow)}
+                {downloadedTracksList.map(track => renderTrackRow(track, false))}
               </>
             )}
           </View>
@@ -388,6 +488,19 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#2D2D2D',
   },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  offlineIndicator: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 152, 0, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   upgradeButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -402,10 +515,26 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 6,
   },
+  offlineBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 152, 0, 0.1)',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginHorizontal: 20,
+    marginBottom: 8,
+    borderRadius: 8,
+    gap: 8,
+  },
+  offlineBannerText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#FF9800',
+  },
   tabs: {
     flexDirection: 'row',
     paddingHorizontal: 20,
-    marginTop: 16,
+    marginTop: 8,
     gap: 8,
   },
   tab: {
@@ -458,14 +587,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingVertical: 8,
+    paddingLeft: 10,
+    paddingRight: 8,
     borderRadius: 10,
     marginBottom: 8,
+  },
+  trackContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   trackThumbnail: {
     width: 44,
     height: 44,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  offlineOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
@@ -479,10 +626,45 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#2D2D2D',
   },
+  trackTitleOffline: {
+    color: '#8B8B8B',
+  },
+  trackMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+    gap: 8,
+  },
   trackMeta: {
     fontSize: 12,
     color: '#8B8B8B',
+  },
+  downloadedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  downloadedText: {
+    fontSize: 11,
+    color: '#4CAF50',
+    fontWeight: '500',
+  },
+  downloadButton: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  downloadingIndicator: {
+    alignItems: 'center',
+  },
+  downloadingText: {
+    fontSize: 9,
+    color: '#4A3463',
     marginTop: 2,
+  },
+  playIcon: {
+    marginLeft: 8,
   },
   emptyContainer: {
     alignItems: 'center',
@@ -551,7 +733,6 @@ const styles = StyleSheet.create({
     color: '#8B8B8B',
     marginTop: 2,
   },
-  // Playlist Detail
   playlistHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -595,7 +776,6 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 20,
   },
-  // Modal
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
