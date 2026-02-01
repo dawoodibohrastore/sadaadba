@@ -98,6 +98,11 @@ interface AppState {
   isPlayerReady: boolean;
   playbackError: string | null;
   
+  // Preview mode state
+  isPreviewMode: boolean;
+  previewStartTime: number;
+  previewEndTime: number;
+  
   // Player controls
   isLoopEnabled: boolean;
   isShuffleEnabled: boolean;
