@@ -256,11 +256,18 @@ export default function HomeScreen() {
             <Text style={styles.greeting}>Salaam</Text>
             <Text style={styles.headerTitle}>Sadaa Instrumentals</Text>
           </View>
-          {isSubscribed && (
-            <View style={styles.subscribedBadge}>
-              <Ionicons name="diamond" size={14} color="#C9A961" />
-            </View>
-          )}
+          <View style={styles.headerRight}>
+            {!isOnline && (
+              <View style={styles.offlineIndicator}>
+                <Ionicons name="cloud-offline" size={14} color="#FF9800" />
+              </View>
+            )}
+            {isSubscribed && (
+              <View style={styles.subscribedBadge}>
+                <Ionicons name="diamond" size={14} color="#C9A961" />
+              </View>
+            )}
+          </View>
         </View>
       </LinearGradient>
 
@@ -275,6 +282,14 @@ export default function HomeScreen() {
           />
         }
       >
+        {/* Offline Banner */}
+        {!isOnline && (
+          <View style={styles.offlineBanner}>
+            <Ionicons name="cloud-offline" size={16} color="#FF9800" />
+            <Text style={styles.offlineBannerText}>You're offline. Only downloaded tracks can be played.</Text>
+          </View>
+        )}
+        
         {renderFeaturedBanner()}
         
         <Text style={styles.filterLabel}>Browse by Mood</Text>
