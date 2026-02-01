@@ -60,6 +60,11 @@ export interface DownloadStatus {
   isDownloaded: boolean;
 }
 
+// Extended downloaded track with metadata for offline access
+export interface DownloadedTrackWithMetadata extends audioService.DownloadedTrack {
+  trackMetadata?: Instrumental;
+}
+
 interface AppState {
   // Network state
   isOnline: boolean;
