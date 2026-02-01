@@ -207,6 +207,7 @@ export default function PlayerScreen() {
     deleteDownload,
     isTrackDownloaded,
     downloads,
+    downloadedTracks,
     toggleFavorite,
     isFavorite,
     playlists,
