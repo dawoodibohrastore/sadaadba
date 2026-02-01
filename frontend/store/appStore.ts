@@ -107,6 +107,7 @@ interface AppState {
   // Actions
   setIsOnline: (online: boolean) => void;
   initializeApp: () => Promise<void>;
+  syncDataWithServer: () => Promise<void>;
   fetchInstrumentals: (mood?: string, search?: string) => Promise<void>;
   fetchFeaturedInstrumentals: () => Promise<void>;
   setSelectedMood: (mood: string) => void;
