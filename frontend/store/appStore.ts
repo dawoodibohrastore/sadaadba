@@ -443,27 +443,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       // Store sound reference
       (set as any)({ _webSound: sound });
       set({ isPlaying: true, isBuffering: false });
-                playbackDuration: status.durationMillis || track.duration * 1000,
-                isPlaying: status.isPlaying,
-                isBuffering: status.isBuffering,
-              });
-              
-              if (status.didJustFinish) {
-                const { isLoopEnabled } = get();
-                if (isLoopEnabled) {
-                  get().seekTo(0).then(() => get().resumeTrack());
-                } else {
-                  get().playNext();
-                }
-              }
-            }
-          }
-        );
-        
-        // Store web sound reference
-        (set as any)({ _webSound: sound });
-        set({ isPlaying: true, isBuffering: false });
-      }
       
     } catch (error) {
       console.error('Error playing track:', error);
@@ -472,32 +451,20 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   pauseTrack: async () => {
-    if (Platform.OS !== 'web') {
-      try {
-        await TrackPlayer.pause();
-      } catch (e) {}
-    } else {
-      // Web fallback
-      const state = get() as any;
-      if (state._webSound) {
-        await state._webSound.pauseAsync();
-      }
+    const state = get() as any;
+    if (state._webSound) {
+      await state._webSound.pauseAsync();
     }
     set({ isPlaying: false });
   },
 
   resumeTrack: async () => {
-    if (Platform.OS !== 'web') {
-      try {
-        await TrackPlayer.play();
-      } catch (e) {}
-    } else {
-      // Web fallback
-      const state = get() as any;
-      if (state._webSound) {
-        await state._webSound.playAsync();
-      }
+    const state = get() as any;
+    if (state._webSound) {
+      await state._webSound.playAsync();
     }
+    set({ isPlaying: true });
+  },
     set({ isPlaying: true });
   },
 
