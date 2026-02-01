@@ -68,34 +68,22 @@ export default function RingtoneTrimmerScreen() {
   // Initialize audio
   useEffect(() => {
     let mounted = true;
-    
-    // Wait for track to be available (params might not be ready immediately)
-    if (!trackId) {
-      return;
-    }
-    
-    if (!track) {
-      // Track not found in the list yet, wait for app to initialize
-      return;
-    }
+    let timer: NodeJS.Timeout | null = null;
     
     const loadAudio = async () => {
+      // Only proceed if we have a valid track
+      if (!trackId || !track || !track.audio_url) {
+        return; // This return is fine - it's inside loadAudio function, not the effect
+      }
+      
       try {
         setIsLoading(true);
 
         // Get audio URL (local if downloaded, otherwise remote)
-        let audioUri = track.audio_url;
+        let audioUri: string | null = track.audio_url;
         const downloaded = downloadedTracks[track.id];
         if (downloaded) {
           audioUri = downloaded.localUri;
-        }
-
-        if (!audioUri) {
-          if (mounted) {
-            setIsLoading(false);
-            Alert.alert('Error', 'Audio not available');
-          }
-          return;
         }
 
         // Check online status for streaming
@@ -134,13 +122,13 @@ export default function RingtoneTrimmerScreen() {
     };
 
     // Small delay to ensure component is fully mounted
-    const timer = setTimeout(loadAudio, 100);
+    timer = setTimeout(loadAudio, 200);
     
     return () => {
       mounted = false;
-      clearTimeout(timer);
+      if (timer) clearTimeout(timer);
     };
-  }, [trackId, track?.id, track?.audio_url]);
+  }, [trackId, track?.id, track?.audio_url, isOnline]);
 
     return () => {
       if (sound) {
