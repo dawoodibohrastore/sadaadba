@@ -20,7 +20,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppStore } from '../store/appStore';
-import TrackPlayer, { useProgress, usePlaybackState, State } from 'react-native-track-player';
 
 const { width, height } = Dimensions.get('window');
 const SEEKBAR_WIDTH = width - 80;
