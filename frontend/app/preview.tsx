@@ -13,9 +13,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import Svg, { Path } from 'react-native-svg';
 import { useAppStore } from '../store/appStore';
+import { COLORS, APP_NAME } from '../constants/theme';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 // Animated waveform component
 const AnimatedWaveform = ({ isPlaying }: { isPlaying: boolean }) => {
