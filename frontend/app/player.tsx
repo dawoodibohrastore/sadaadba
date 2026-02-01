@@ -541,6 +541,198 @@ export default function PlayerScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Ringtone Trimmer Modal */}
+      <Modal
+        visible={showRingtoneModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowRingtoneModal(false)}
+      >
+        <View style={styles.ringtoneModalContainer}>
+          <View style={styles.ringtoneModalContent}>
+            <View style={styles.ringtoneModalHeader}>
+              <Text style={styles.ringtoneModalTitle}>Set as Ringtone</Text>
+              <TouchableOpacity onPress={() => setShowRingtoneModal(false)}>
+                <Ionicons name="close" size={24} color="#2D2D2D" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Track Info */}
+            <View style={styles.ringtoneTrackInfo}>
+              <View style={styles.ringtoneTrackIcon}>
+                <Ionicons name="musical-note" size={24} color="#C9A961" />
+              </View>
+              <View style={styles.ringtoneTrackDetails}>
+                <Text style={styles.ringtoneTrackTitle} numberOfLines={1}>
+                  {currentTrack?.title}
+                </Text>
+                <Text style={styles.ringtoneTrackMood}>{currentTrack?.mood}</Text>
+              </View>
+            </View>
+
+            {/* Trim Instructions */}
+            <View style={styles.ringtoneInstructions}>
+              <Ionicons name="information-circle" size={18} color="#8B8B8B" />
+              <Text style={styles.ringtoneInstructionText}>
+                Select a portion (max 30 seconds) to use as ringtone
+              </Text>
+            </View>
+
+            {/* Time Selection */}
+            <View style={styles.ringtoneTimeRow}>
+              <View style={styles.ringtoneTimeInput}>
+                <Text style={styles.ringtoneTimeLabel}>Start</Text>
+                <Text style={styles.ringtoneTimeValue}>
+                  {formatTime(ringtoneStartTime)}
+                </Text>
+              </View>
+              <View style={styles.ringtoneDuration}>
+                <Text style={styles.ringtoneDurationLabel}>Duration</Text>
+                <Text style={[
+                  styles.ringtoneDurationValue,
+                  ringtoneEndTime - ringtoneStartTime > MAX_RINGTONE_DURATION && styles.ringtoneDurationError
+                ]}>
+                  {formatRingtoneDuration(ringtoneEndTime - ringtoneStartTime)}
+                </Text>
+              </View>
+              <View style={styles.ringtoneTimeInput}>
+                <Text style={styles.ringtoneTimeLabel}>End</Text>
+                <Text style={styles.ringtoneTimeValue}>
+                  {formatTime(ringtoneEndTime)}
+                </Text>
+              </View>
+            </View>
+
+            {/* Quick Select Options */}
+            <View style={styles.ringtoneQuickSelect}>
+              <Text style={styles.ringtoneQuickLabel}>Quick Select:</Text>
+              <View style={styles.ringtoneQuickButtons}>
+                <TouchableOpacity 
+                  style={styles.ringtoneQuickButton}
+                  onPress={() => {
+                    setRingtoneStartTime(0);
+                    setRingtoneEndTime(Math.min(15000, playbackDuration));
+                  }}
+                >
+                  <Text style={styles.ringtoneQuickButtonText}>First 15s</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.ringtoneQuickButton}
+                  onPress={() => {
+                    setRingtoneStartTime(0);
+                    setRingtoneEndTime(Math.min(30000, playbackDuration));
+                  }}
+                >
+                  <Text style={styles.ringtoneQuickButtonText}>First 30s</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.ringtoneQuickButton}
+                  onPress={() => {
+                    const start = Math.max(0, playbackDuration - 30000);
+                    setRingtoneStartTime(start);
+                    setRingtoneEndTime(playbackDuration);
+                  }}
+                >
+                  <Text style={styles.ringtoneQuickButtonText}>Last 30s</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Platform Note */}
+            {Platform.OS === 'ios' && (
+              <View style={styles.ringtonePlatformNote}>
+                <Ionicons name="warning" size={16} color="#FF9800" />
+                <Text style={styles.ringtonePlatformText}>
+                  iOS doesn't allow apps to set ringtones directly. The audio will be downloaded for use in GarageBand.
+                </Text>
+              </View>
+            )}
+
+            {/* Set Ringtone Button */}
+            <TouchableOpacity
+              style={[
+                styles.ringtoneSetButton,
+                isProcessingRingtone && styles.ringtoneSetButtonDisabled,
+              ]}
+              onPress={async () => {
+                if (!currentTrack) return;
+                
+                // Check platform
+                if (!canSetRingtone()) {
+                  Alert.alert(
+                    'iOS Limitation',
+                    'Apple doesn\'t allow apps to set ringtones directly.\n\nTo set a custom ringtone on iPhone, download the audio and use GarageBand to create a ringtone.',
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Download Audio',
+                        onPress: async () => {
+                          const success = await downloadTrack(currentTrack);
+                          if (success) {
+                            Alert.alert('Downloaded', 'Audio saved for offline use.');
+                          }
+                          setShowRingtoneModal(false);
+                        },
+                      },
+                    ]
+                  );
+                  return;
+                }
+                
+                setIsProcessingRingtone(true);
+                try {
+                  let audioUri = currentTrack.audio_url;
+                  const downloaded = downloadedTracks[currentTrack.id];
+                  if (downloaded) {
+                    audioUri = downloaded.localUri;
+                  }
+                  
+                  if (!audioUri) {
+                    Alert.alert('Error', 'Audio not available');
+                    return;
+                  }
+                  
+                  const preparedFile = await prepareAudioForRingtone(
+                    audioUri,
+                    currentTrack.id,
+                    currentTrack.title,
+                    { startTime: ringtoneStartTime, endTime: ringtoneEndTime }
+                  );
+                  
+                  if (preparedFile) {
+                    const result = await setAsRingtone(preparedFile, currentTrack.title);
+                    Alert.alert(
+                      result.success ? 'Success' : 'Note',
+                      result.message
+                    );
+                  } else {
+                    Alert.alert('Error', 'Failed to prepare audio file');
+                  }
+                } catch (error) {
+                  console.error('Ringtone error:', error);
+                  Alert.alert('Error', 'Failed to set ringtone');
+                } finally {
+                  setIsProcessingRingtone(false);
+                  setShowRingtoneModal(false);
+                }
+              }}
+              disabled={isProcessingRingtone}
+            >
+              {isProcessingRingtone ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <>
+                  <Ionicons name="notifications" size={20} color="#FFFFFF" />
+                  <Text style={styles.ringtoneSetButtonText}>
+                    {Platform.OS === 'ios' ? 'Download for Ringtone' : 'Set as Ringtone'}
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </LinearGradient>
   );
 }
