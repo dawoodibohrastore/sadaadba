@@ -199,34 +199,51 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       // Initialize TrackPlayer first (only on native platforms)
       if (Platform.OS !== 'web') {
-        const playerReady = await setupPlayer();
-        set({ isPlayerReady: playerReady });
-        
-        // Set up event listeners for TrackPlayer
-        if (playerReady) {
-          TrackPlayer.addEventListener(Event.PlaybackState, (event) => {
-            const isPlaying = event.state === State.Playing;
-            const isBuffering = event.state === State.Buffering || event.state === State.Loading;
-            set({ isPlaying, isBuffering });
-          });
+        try {
+          // Dynamic import TrackPlayer and setup
+          const trackPlayerModule = await import('react-native-track-player');
+          TrackPlayer = trackPlayerModule.default;
+          const playbackService = await import('../services/playbackService');
+          setupPlayer = playbackService.setupPlayer;
+          formatTrack = playbackService.formatTrack;
           
-          TrackPlayer.addEventListener(Event.PlaybackActiveTrackChanged, (event) => {
-            if (event.track) {
-              const { instrumentals } = get();
-              const track = instrumentals.find(t => t.id === event.track?.id);
-              if (track) {
-                set({ currentTrack: track });
+          const playerReady = await setupPlayer();
+          set({ isPlayerReady: playerReady });
+          
+          // Set up event listeners for TrackPlayer
+          if (playerReady) {
+            const { Event, State } = trackPlayerModule;
+            
+            TrackPlayer.addEventListener(Event.PlaybackState, (event: any) => {
+              const isPlaying = event.state === State.Playing;
+              const isBuffering = event.state === State.Buffering || event.state === State.Loading;
+              set({ isPlaying, isBuffering });
+            });
+            
+            TrackPlayer.addEventListener(Event.PlaybackActiveTrackChanged, (event: any) => {
+              if (event.track) {
+                const { instrumentals } = get();
+                const track = instrumentals.find(t => t.id === event.track?.id);
+                if (track) {
+                  set({ currentTrack: track });
+                }
               }
-            }
-          });
-          
-          TrackPlayer.addEventListener(Event.PlaybackError, (event) => {
-            console.error('Playback error:', event);
-            set({ playbackError: 'Playback error. Please check your connection.', isPlaying: false });
-          });
+            });
+            
+            TrackPlayer.addEventListener(Event.PlaybackError, (event: any) => {
+              console.error('Playback error:', event);
+              set({ playbackError: 'Playback error. Please check your connection.', isPlaying: false });
+            });
+            
+            // Register playback service
+            TrackPlayer.registerPlaybackService(() => playbackService.PlaybackService);
+          }
+        } catch (err) {
+          console.log('TrackPlayer not available:', err);
+          set({ isPlayerReady: true });
         }
       } else {
-        // For web, we'll use a fallback
+        // For web, we'll use expo-av fallback
         set({ isPlayerReady: true });
       }
       // Setup audio
