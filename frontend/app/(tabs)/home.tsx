@@ -58,6 +58,14 @@ export default function HomeScreen() {
   }, [selectedMood]);
 
   const handleTrackPress = async (track: Instrumental) => {
+    // Check if track can be played
+    const { canPlay, reason } = useAppStore.getState().canPlayTrack(track.id);
+    
+    if (!canPlay) {
+      Alert.alert('Offline', reason || 'Internet connection required to play this audio.');
+      return;
+    }
+    
     if (track.is_premium && !isSubscribed) {
       router.push('/subscription');
     } else {
