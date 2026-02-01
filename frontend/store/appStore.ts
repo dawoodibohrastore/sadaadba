@@ -197,56 +197,28 @@ export const useAppStore = create<AppState>((set, get) => ({
   initializeApp: async () => {
     set({ isLoading: true });
     try {
-      // Initialize TrackPlayer first (only on native platforms)
+      // For now, we use expo-av on all platforms
+      // TrackPlayer integration will be available on native builds
+      set({ isPlayerReady: true });
+      
+      // Setup audio mode for background playback (expo-av)
       if (Platform.OS !== 'web') {
         try {
-          // Dynamic import TrackPlayer and setup
-          const trackPlayerModule = await import('react-native-track-player');
-          TrackPlayer = trackPlayerModule.default;
-          const playbackService = await import('../services/playbackService');
-          setupPlayer = playbackService.setupPlayer;
-          formatTrack = playbackService.formatTrack;
-          
-          const playerReady = await setupPlayer();
-          set({ isPlayerReady: playerReady });
-          
-          // Set up event listeners for TrackPlayer
-          if (playerReady) {
-            const { Event, State } = trackPlayerModule;
-            
-            TrackPlayer.addEventListener(Event.PlaybackState, (event: any) => {
-              const isPlaying = event.state === State.Playing;
-              const isBuffering = event.state === State.Buffering || event.state === State.Loading;
-              set({ isPlaying, isBuffering });
-            });
-            
-            TrackPlayer.addEventListener(Event.PlaybackActiveTrackChanged, (event: any) => {
-              if (event.track) {
-                const { instrumentals } = get();
-                const track = instrumentals.find(t => t.id === event.track?.id);
-                if (track) {
-                  set({ currentTrack: track });
-                }
-              }
-            });
-            
-            TrackPlayer.addEventListener(Event.PlaybackError, (event: any) => {
-              console.error('Playback error:', event);
-              set({ playbackError: 'Playback error. Please check your connection.', isPlaying: false });
-            });
-            
-            // Register playback service
-            TrackPlayer.registerPlaybackService(() => playbackService.PlaybackService);
-          }
+          const { Audio, InterruptionModeIOS, InterruptionModeAndroid } = await import('expo-av');
+          await Audio.setAudioModeAsync({
+            allowsRecordingIOS: false,
+            staysActiveInBackground: true,
+            playsInSilentModeIOS: true,
+            interruptionModeIOS: InterruptionModeIOS.DuckOthers,
+            interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
+            shouldDuckAndroid: true,
+            playThroughEarpieceAndroid: false,
+          });
         } catch (err) {
-          console.log('TrackPlayer not available:', err);
-          set({ isPlayerReady: true });
+          console.log('Audio mode setup error:', err);
         }
-      } else {
-        // For web, we'll use expo-av fallback
-        set({ isPlayerReady: true });
       }
-      // Setup audio
+      
       // Load player settings
       const savedLoop = await AsyncStorage.getItem('isLoopEnabled');
       const savedShuffle = await AsyncStorage.getItem('isShuffleEnabled');
