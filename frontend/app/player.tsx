@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -19,10 +19,19 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Audio } from 'expo-av';
 import { useAppStore } from '../store/appStore';
+import {
+  formatTime,
+  formatDuration as formatRingtoneDuration,
+  prepareAudioForRingtone,
+  setAsRingtone,
+  canSetRingtone,
+} from '../services/ringtoneService';
 
 const { width, height } = Dimensions.get('window');
 const SEEKBAR_WIDTH = width - 80;
+const MAX_RINGTONE_DURATION = 30000; // 30 seconds
 
 // Custom SeekBar component
 const SeekBar = ({ 
