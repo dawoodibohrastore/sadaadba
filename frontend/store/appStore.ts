@@ -5,8 +5,18 @@ import Constants from 'expo-constants';
 import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as audioService from '../services/audioService';
+import { checkIsOnline, subscribeToNetworkChanges } from '../services/networkService';
 
 const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:8001';
+
+// Storage keys for offline data
+const STORAGE_KEYS = {
+  USER: 'sadaa_user',
+  INSTRUMENTALS: 'sadaa_instrumentals',
+  FAVORITES: 'sadaa_favorites',
+  PLAYLISTS: 'sadaa_playlists',
+  SUBSCRIPTION: 'sadaa_subscription',
+};
 
 export interface Instrumental {
   id: string;
@@ -50,6 +60,9 @@ export interface DownloadStatus {
 }
 
 interface AppState {
+  // Network state
+  isOnline: boolean;
+  
   // User state
   user: User | null;
   isSubscribed: boolean;
@@ -58,6 +71,7 @@ interface AppState {
   instrumentals: Instrumental[];
   featuredInstrumentals: Instrumental[];
   favorites: Instrumental[];
+  favoriteIds: string[];
   playlists: Playlist[];
   moods: string[];
   
@@ -85,6 +99,7 @@ interface AppState {
   downloadedTracks: Record<string, audioService.DownloadedTrack>;
   
   // Actions
+  setIsOnline: (online: boolean) => void;
   initializeApp: () => Promise<void>;
   fetchInstrumentals: (mood?: string, search?: string) => Promise<void>;
   fetchFeaturedInstrumentals: () => Promise<void>;
@@ -104,18 +119,22 @@ interface AppState {
   setQueue: (tracks: Instrumental[]) => void;
   setCurrentTrack: (track: Instrumental | null) => void;
   
-  // Favorites actions
+  // Favorites actions (offline-first)
   fetchFavorites: () => Promise<void>;
   toggleFavorite: (trackId: string) => Promise<void>;
   isFavorite: (trackId: string) => boolean;
+  saveFavoritesLocally: () => Promise<void>;
+  loadFavoritesLocally: () => Promise<void>;
   
-  // Playlist actions
+  // Playlist actions (offline-first)
   fetchPlaylists: () => Promise<void>;
   createPlaylist: (name: string, description?: string) => Promise<Playlist | null>;
   deletePlaylist: (playlistId: string) => Promise<boolean>;
   addToPlaylist: (playlistId: string, trackId: string) => Promise<boolean>;
   removeFromPlaylist: (playlistId: string, trackId: string) => Promise<boolean>;
   getPlaylistTracks: (playlistId: string) => Promise<Instrumental[]>;
+  savePlaylistsLocally: () => Promise<void>;
+  loadPlaylistsLocally: () => Promise<void>;
   
   // Subscription actions
   subscribe: (plan?: string) => Promise<boolean>;
@@ -127,15 +146,18 @@ interface AppState {
   deleteDownload: (trackId: string) => Promise<boolean>;
   loadDownloadedTracks: () => Promise<void>;
   isTrackDownloaded: (trackId: string) => boolean;
+  canPlayTrack: (trackId: string) => { canPlay: boolean; reason?: string };
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
   // Initial state
+  isOnline: true,
   user: null,
   isSubscribed: false,
   instrumentals: [],
   featuredInstrumentals: [],
   favorites: [],
+  favoriteIds: [],
   playlists: [],
   moods: ['All', 'Calm', 'Drums', 'Spiritual', 'Soft', 'Energetic'],
   isLoading: false,
@@ -154,9 +176,14 @@ export const useAppStore = create<AppState>((set, get) => ({
   downloads: {},
   downloadedTracks: {},
 
+  setIsOnline: (online: boolean) => {
+    set({ isOnline: online });
+  },
+
   initializeApp: async () => {
     set({ isLoading: true });
     try {
+      // Setup audio
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
         staysActiveInBackground: true,
@@ -167,32 +194,69 @@ export const useAppStore = create<AppState>((set, get) => ({
         playThroughEarpieceAndroid: false,
       });
 
-      const deviceId = Constants.installationId || Device.osBuildId || `device_${Date.now()}`;
-      
-      const userResponse = await axios.post(`${API_BASE}/api/users`, { device_id: deviceId });
-      const user = userResponse.data;
-      
-      const subResponse = await axios.get(`${API_BASE}/api/subscription/status/${user.id}`);
-      
-      set({ user, isSubscribed: subResponse.data.is_subscribed });
-      
-      // Load saved player settings
+      // Load player settings
       const savedLoop = await AsyncStorage.getItem('isLoopEnabled');
       const savedShuffle = await AsyncStorage.getItem('isShuffleEnabled');
       set({
         isLoopEnabled: savedLoop === 'true',
         isShuffleEnabled: savedShuffle === 'true'
       });
-      
-      try {
-        await axios.post(`${API_BASE}/api/seed`);
-      } catch (e) {}
-      
+
+      // Load downloaded tracks first (always available offline)
       await get().loadDownloadedTracks();
-      await get().fetchFeaturedInstrumentals();
-      await get().fetchInstrumentals();
-      await get().fetchFavorites();
-      await get().fetchPlaylists();
+      
+      // Load local data first (offline-first)
+      await get().loadFavoritesLocally();
+      await get().loadPlaylistsLocally();
+      
+      // Load cached instrumentals
+      const cachedInstrumentals = await AsyncStorage.getItem(STORAGE_KEYS.INSTRUMENTALS);
+      if (cachedInstrumentals) {
+        const parsed = JSON.parse(cachedInstrumentals);
+        set({ instrumentals: parsed, featuredInstrumentals: parsed.filter((i: Instrumental) => i.is_featured) });
+      }
+
+      // Check network status
+      const online = await checkIsOnline();
+      set({ isOnline: online });
+
+      // Subscribe to network changes
+      subscribeToNetworkChanges((isOnline) => {
+        set({ isOnline });
+        if (isOnline) {
+          // Sync when coming back online
+          get().syncDataWithServer();
+        }
+      });
+
+      if (online) {
+        // Online: fetch from server
+        const deviceId = Constants.installationId || Device.osBuildId || `device_${Date.now()}`;
+        
+        const userResponse = await axios.post(`${API_BASE}/api/users`, { device_id: deviceId });
+        const user = userResponse.data;
+        
+        // Save user locally
+        await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
+        
+        const subResponse = await axios.get(`${API_BASE}/api/subscription/status/${user.id}`);
+        set({ user, isSubscribed: subResponse.data.is_subscribed });
+        
+        try {
+          await axios.post(`${API_BASE}/api/seed`);
+        } catch (e) {}
+        
+        await get().fetchFeaturedInstrumentals();
+        await get().fetchInstrumentals();
+        await get().fetchFavorites();
+        await get().fetchPlaylists();
+      } else {
+        // Offline: load cached user
+        const cachedUser = await AsyncStorage.getItem(STORAGE_KEYS.USER);
+        if (cachedUser) {
+          set({ user: JSON.parse(cachedUser) });
+        }
+      }
       
     } catch (error) {
       console.error('Failed to initialize app:', error);
@@ -201,7 +265,40 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
+  syncDataWithServer: async () => {
+    const { user } = get();
+    if (!user) return;
+    
+    try {
+      await get().fetchInstrumentals();
+      await get().fetchFavorites();
+      await get().fetchPlaylists();
+    } catch (error) {
+      console.error('Failed to sync with server:', error);
+    }
+  },
+
   fetchInstrumentals: async (mood?: string, search?: string) => {
+    const { isOnline } = get();
+    
+    if (!isOnline) {
+      // Use cached data when offline
+      const cached = await AsyncStorage.getItem(STORAGE_KEYS.INSTRUMENTALS);
+      if (cached) {
+        let instrumentals = JSON.parse(cached);
+        if (mood && mood !== 'All') {
+          instrumentals = instrumentals.filter((i: Instrumental) => i.mood === mood);
+        }
+        if (search) {
+          instrumentals = instrumentals.filter((i: Instrumental) => 
+            i.title.toLowerCase().includes(search.toLowerCase())
+          );
+        }
+        set({ instrumentals });
+      }
+      return;
+    }
+    
     try {
       const params: any = {};
       if (mood && mood !== 'All') params.mood = mood;
@@ -209,12 +306,28 @@ export const useAppStore = create<AppState>((set, get) => ({
       
       const response = await axios.get(`${API_BASE}/api/instrumentals`, { params });
       set({ instrumentals: response.data });
+      
+      // Cache instrumentals locally
+      if (!mood && !search) {
+        await AsyncStorage.setItem(STORAGE_KEYS.INSTRUMENTALS, JSON.stringify(response.data));
+      }
     } catch (error) {
       console.error('Failed to fetch instrumentals:', error);
     }
   },
 
   fetchFeaturedInstrumentals: async () => {
+    const { isOnline } = get();
+    
+    if (!isOnline) {
+      const cached = await AsyncStorage.getItem(STORAGE_KEYS.INSTRUMENTALS);
+      if (cached) {
+        const all = JSON.parse(cached);
+        set({ featuredInstrumentals: all.filter((i: Instrumental) => i.is_featured) });
+      }
+      return;
+    }
+    
     try {
       const response = await axios.get(`${API_BASE}/api/instrumentals/featured`);
       set({ featuredInstrumentals: response.data });
@@ -234,7 +347,15 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   playTrack: async (track: Instrumental, queue?: Instrumental[]) => {
-    const { sound: currentSound, downloadedTracks, instrumentals, isSubscribed } = get();
+    const { sound: currentSound, downloadedTracks, instrumentals, isSubscribed, isOnline } = get();
+    
+    // Check if track can be played
+    const isDownloaded = !!downloadedTracks[track.id];
+    
+    if (!isDownloaded && !isOnline) {
+      // Can't play - not downloaded and offline
+      return;
+    }
     
     try {
       if (currentSound) {
@@ -243,7 +364,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       
       set({ isBuffering: true, currentTrack: track, isPlaying: false });
       
-      // Set queue
       const playQueue = queue || (isSubscribed ? instrumentals : instrumentals.filter(i => !i.is_premium));
       const queueIndex = playQueue.findIndex(t => t.id === track.id);
       set({ queue: playQueue, queueIndex: queueIndex >= 0 ? queueIndex : 0 });
@@ -260,8 +380,10 @@ export const useAppStore = create<AppState>((set, get) => ({
         return;
       }
       
-      // Track play count
-      axios.post(`${API_BASE}/api/instrumentals/${track.id}/play`).catch(() => {});
+      // Track play count (only when online)
+      if (isOnline) {
+        axios.post(`${API_BASE}/api/instrumentals/${track.id}/play`).catch(() => {});
+      }
       
       const { sound } = await Audio.Sound.createAsync(
         { uri: audioUri },
@@ -320,21 +442,35 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   playNext: async () => {
-    const { queue, queueIndex, isShuffleEnabled, isLoopEnabled, currentTrack } = get();
+    const { queue, queueIndex, isShuffleEnabled, downloadedTracks, isOnline } = get();
     if (queue.length === 0) return;
     
     let nextIndex: number;
+    let attempts = 0;
+    const maxAttempts = queue.length;
     
-    if (isShuffleEnabled) {
-      // Random track (not current)
-      let randomIndex = Math.floor(Math.random() * queue.length);
-      while (randomIndex === queueIndex && queue.length > 1) {
-        randomIndex = Math.floor(Math.random() * queue.length);
+    do {
+      if (isShuffleEnabled) {
+        let randomIndex = Math.floor(Math.random() * queue.length);
+        while (randomIndex === queueIndex && queue.length > 1) {
+          randomIndex = Math.floor(Math.random() * queue.length);
+        }
+        nextIndex = randomIndex;
+      } else {
+        nextIndex = (queueIndex + 1 + attempts) % queue.length;
       }
-      nextIndex = randomIndex;
-    } else {
-      nextIndex = (queueIndex + 1) % queue.length;
-    }
+      
+      const nextTrack = queue[nextIndex];
+      const isDownloaded = !!downloadedTracks[nextTrack?.id];
+      
+      // If offline, only play downloaded tracks
+      if (!isOnline && !isDownloaded) {
+        attempts++;
+        continue;
+      }
+      
+      break;
+    } while (attempts < maxAttempts);
     
     set({ queueIndex: nextIndex });
     if (queue[nextIndex]) {
@@ -343,10 +479,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   playPrevious: async () => {
-    const { queue, queueIndex, playbackPosition, isShuffleEnabled } = get();
+    const { queue, queueIndex, playbackPosition, isShuffleEnabled, downloadedTracks, isOnline } = get();
     if (queue.length === 0) return;
     
-    // If more than 3 seconds in, restart current track
     if (playbackPosition > 3000) {
       await get().seekTo(0);
       return;
@@ -367,26 +502,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (queue[prevIndex]) {
       await get().playTrack(queue[prevIndex], queue);
     }
-  },
-
-  toggleLoop: () => {
-    const newValue = !get().isLoopEnabled;
-    set({ isLoopEnabled: newValue });
-    AsyncStorage.setItem('isLoopEnabled', String(newValue));
-  },
-
-  toggleShuffle: () => {
-    const newValue = !get().isShuffleEnabled;
-    set({ isShuffleEnabled: newValue });
-    AsyncStorage.setItem('isShuffleEnabled', String(newValue));
-  },
-
-  setQueue: (tracks: Instrumental[]) => {
-    set({ queue: tracks });
-  },
-
-  setCurrentTrack: (track: Instrumental | null) => {
-    set({ currentTrack: track });
   },
 
   stopPlayback: async () => {
@@ -410,136 +525,281 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
   },
 
+  toggleLoop: () => {
+    const newValue = !get().isLoopEnabled;
+    set({ isLoopEnabled: newValue });
+    AsyncStorage.setItem('isLoopEnabled', String(newValue));
+  },
+
+  toggleShuffle: () => {
+    const newValue = !get().isShuffleEnabled;
+    set({ isShuffleEnabled: newValue });
+    AsyncStorage.setItem('isShuffleEnabled', String(newValue));
+  },
+
+  setQueue: (tracks: Instrumental[]) => {
+    set({ queue: tracks });
+  },
+
+  setCurrentTrack: (track: Instrumental | null) => {
+    set({ currentTrack: track });
+  },
+
+  // Favorites (offline-first)
+  saveFavoritesLocally: async () => {
+    const { favoriteIds, favorites } = get();
+    await AsyncStorage.setItem(STORAGE_KEYS.FAVORITES, JSON.stringify({ ids: favoriteIds, tracks: favorites }));
+  },
+
+  loadFavoritesLocally: async () => {
+    try {
+      const data = await AsyncStorage.getItem(STORAGE_KEYS.FAVORITES);
+      if (data) {
+        const parsed = JSON.parse(data);
+        set({ favoriteIds: parsed.ids || [], favorites: parsed.tracks || [] });
+      }
+    } catch (error) {
+      console.error('Failed to load favorites locally:', error);
+    }
+  },
+
   fetchFavorites: async () => {
-    const { user } = get();
-    if (!user) return;
+    const { user, isOnline } = get();
+    
+    if (!isOnline || !user) {
+      // Use locally stored favorites when offline
+      return;
+    }
     
     try {
       const response = await axios.get(`${API_BASE}/api/favorites/${user.id}`);
-      set({ favorites: response.data });
+      const tracks = response.data;
+      const ids = tracks.map((t: Instrumental) => t.id);
+      set({ favorites: tracks, favoriteIds: ids });
+      
+      // Save to local storage
+      await get().saveFavoritesLocally();
     } catch (error) {
       console.error('Failed to fetch favorites:', error);
     }
   },
 
   toggleFavorite: async (trackId: string) => {
-    const { user, favorites } = get();
-    if (!user) return;
+    const { user, favorites, favoriteIds, instrumentals, isOnline } = get();
     
-    const isFav = favorites.some(f => f.id === trackId);
+    const isFav = favoriteIds.includes(trackId);
     
-    try {
-      if (isFav) {
-        await axios.delete(`${API_BASE}/api/favorites/${user.id}/${trackId}`);
-        set({ favorites: favorites.filter(f => f.id !== trackId) });
-      } else {
-        await axios.post(`${API_BASE}/api/favorites/${user.id}/${trackId}`);
-        const track = get().instrumentals.find(i => i.id === trackId);
-        if (track) {
-          set({ favorites: [...favorites, track] });
-        }
+    // Update local state immediately (optimistic update)
+    if (isFav) {
+      set({ 
+        favoriteIds: favoriteIds.filter(id => id !== trackId),
+        favorites: favorites.filter(f => f.id !== trackId) 
+      });
+    } else {
+      const track = instrumentals.find(i => i.id === trackId);
+      if (track) {
+        set({ 
+          favoriteIds: [...favoriteIds, trackId],
+          favorites: [...favorites, track] 
+        });
       }
-    } catch (error) {
-      console.error('Failed to toggle favorite:', error);
+    }
+    
+    // Save locally immediately
+    await get().saveFavoritesLocally();
+    
+    // Sync with server if online
+    if (isOnline && user) {
+      try {
+        if (isFav) {
+          await axios.delete(`${API_BASE}/api/favorites/${user.id}/${trackId}`);
+        } else {
+          await axios.post(`${API_BASE}/api/favorites/${user.id}/${trackId}`);
+        }
+      } catch (error) {
+        console.error('Failed to sync favorite with server:', error);
+      }
     }
   },
 
   isFavorite: (trackId: string) => {
-    return get().favorites.some(f => f.id === trackId);
+    return get().favoriteIds.includes(trackId);
   },
 
-  // Playlists
+  // Playlists (offline-first)
+  savePlaylistsLocally: async () => {
+    const { playlists } = get();
+    await AsyncStorage.setItem(STORAGE_KEYS.PLAYLISTS, JSON.stringify(playlists));
+  },
+
+  loadPlaylistsLocally: async () => {
+    try {
+      const data = await AsyncStorage.getItem(STORAGE_KEYS.PLAYLISTS);
+      if (data) {
+        set({ playlists: JSON.parse(data) });
+      }
+    } catch (error) {
+      console.error('Failed to load playlists locally:', error);
+    }
+  },
+
   fetchPlaylists: async () => {
-    const { user } = get();
-    if (!user) return;
+    const { user, isOnline } = get();
+    
+    if (!isOnline || !user) {
+      return;
+    }
     
     try {
       const response = await axios.get(`${API_BASE}/api/playlists/${user.id}`);
       set({ playlists: response.data });
+      await get().savePlaylistsLocally();
     } catch (error) {
       console.error('Failed to fetch playlists:', error);
     }
   },
 
   createPlaylist: async (name: string, description?: string) => {
-    const { user } = get();
-    if (!user) return null;
+    const { user, playlists, isOnline } = get();
     
-    try {
-      const response = await axios.post(`${API_BASE}/api/playlists`, {
-        user_id: user.id,
-        name,
-        description: description || '',
-      });
-      const newPlaylist = response.data;
-      set({ playlists: [...get().playlists, newPlaylist] });
-      return newPlaylist;
-    } catch (error) {
-      console.error('Failed to create playlist:', error);
-      return null;
+    // Create local playlist
+    const newPlaylist: Playlist = {
+      id: `local_${Date.now()}`,
+      user_id: user?.id || 'local',
+      name,
+      description: description || '',
+      track_ids: [],
+      cover_color: '#4A3463',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    
+    set({ playlists: [...playlists, newPlaylist] });
+    await get().savePlaylistsLocally();
+    
+    // Sync with server if online
+    if (isOnline && user) {
+      try {
+        const response = await axios.post(`${API_BASE}/api/playlists`, {
+          user_id: user.id,
+          name,
+          description: description || '',
+        });
+        
+        // Replace local playlist with server version
+        const serverPlaylist = response.data;
+        set({ 
+          playlists: get().playlists.map(p => 
+            p.id === newPlaylist.id ? serverPlaylist : p
+          )
+        });
+        await get().savePlaylistsLocally();
+        return serverPlaylist;
+      } catch (error) {
+        console.error('Failed to sync playlist with server:', error);
+      }
     }
+    
+    return newPlaylist;
   },
 
   deletePlaylist: async (playlistId: string) => {
-    try {
-      await axios.delete(`${API_BASE}/api/playlists/${playlistId}`);
-      set({ playlists: get().playlists.filter(p => p.id !== playlistId) });
-      return true;
-    } catch (error) {
-      console.error('Failed to delete playlist:', error);
-      return false;
+    const { playlists, isOnline } = get();
+    
+    // Remove locally immediately
+    set({ playlists: playlists.filter(p => p.id !== playlistId) });
+    await get().savePlaylistsLocally();
+    
+    // Sync with server if online
+    if (isOnline && !playlistId.startsWith('local_')) {
+      try {
+        await axios.delete(`${API_BASE}/api/playlists/${playlistId}`);
+      } catch (error) {
+        console.error('Failed to delete playlist from server:', error);
+      }
     }
+    
+    return true;
   },
 
   addToPlaylist: async (playlistId: string, trackId: string) => {
-    try {
-      await axios.post(`${API_BASE}/api/playlists/${playlistId}/tracks/${trackId}`);
-      // Update local playlist
-      set({
-        playlists: get().playlists.map(p => 
-          p.id === playlistId 
-            ? { ...p, track_ids: [...p.track_ids, trackId] }
-            : p
-        )
-      });
-      return true;
-    } catch (error) {
-      console.error('Failed to add to playlist:', error);
-      return false;
+    const { playlists, isOnline } = get();
+    
+    // Update locally immediately
+    set({
+      playlists: playlists.map(p => 
+        p.id === playlistId 
+          ? { ...p, track_ids: [...new Set([...p.track_ids, trackId])] }
+          : p
+      )
+    });
+    await get().savePlaylistsLocally();
+    
+    // Sync with server if online
+    if (isOnline && !playlistId.startsWith('local_')) {
+      try {
+        await axios.post(`${API_BASE}/api/playlists/${playlistId}/tracks/${trackId}`);
+      } catch (error) {
+        console.error('Failed to add to playlist on server:', error);
+      }
     }
+    
+    return true;
   },
 
   removeFromPlaylist: async (playlistId: string, trackId: string) => {
-    try {
-      await axios.delete(`${API_BASE}/api/playlists/${playlistId}/tracks/${trackId}`);
-      set({
-        playlists: get().playlists.map(p => 
-          p.id === playlistId 
-            ? { ...p, track_ids: p.track_ids.filter(id => id !== trackId) }
-            : p
-        )
-      });
-      return true;
-    } catch (error) {
-      console.error('Failed to remove from playlist:', error);
-      return false;
+    const { playlists, isOnline } = get();
+    
+    // Update locally immediately
+    set({
+      playlists: playlists.map(p => 
+        p.id === playlistId 
+          ? { ...p, track_ids: p.track_ids.filter(id => id !== trackId) }
+          : p
+      )
+    });
+    await get().savePlaylistsLocally();
+    
+    // Sync with server if online
+    if (isOnline && !playlistId.startsWith('local_')) {
+      try {
+        await axios.delete(`${API_BASE}/api/playlists/${playlistId}/tracks/${trackId}`);
+      } catch (error) {
+        console.error('Failed to remove from playlist on server:', error);
+      }
     }
+    
+    return true;
   },
 
   getPlaylistTracks: async (playlistId: string) => {
-    try {
-      const response = await axios.get(`${API_BASE}/api/playlists/detail/${playlistId}`);
-      return response.data.tracks;
-    } catch (error) {
-      console.error('Failed to get playlist tracks:', error);
-      return [];
+    const { playlists, instrumentals, isOnline } = get();
+    const playlist = playlists.find(p => p.id === playlistId);
+    
+    if (!playlist) return [];
+    
+    // Get tracks from local instrumentals cache
+    const tracks = playlist.track_ids
+      .map(id => instrumentals.find(i => i.id === id))
+      .filter((t): t is Instrumental => t !== undefined);
+    
+    // If online and not a local playlist, try to fetch from server
+    if (isOnline && !playlistId.startsWith('local_')) {
+      try {
+        const response = await axios.get(`${API_BASE}/api/playlists/detail/${playlistId}`);
+        return response.data.tracks;
+      } catch (error) {
+        console.error('Failed to get playlist tracks from server:', error);
+      }
     }
+    
+    return tracks;
   },
 
   // Subscription
   subscribe: async (plan: string = 'monthly') => {
-    const { user } = get();
-    if (!user) return false;
+    const { user, isOnline } = get();
+    if (!user || !isOnline) return false;
     
     try {
       await axios.post(`${API_BASE}/api/subscription/subscribe`, {
@@ -555,8 +815,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   restorePurchase: async () => {
-    const { user } = get();
-    if (!user) return false;
+    const { user, isOnline } = get();
+    if (!user || !isOnline) return false;
     
     try {
       const response = await axios.post(`${API_BASE}/api/subscription/restore/${user.id}`);
@@ -571,8 +831,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   checkSubscription: async () => {
-    const { user } = get();
-    if (!user) return;
+    const { user, isOnline } = get();
+    if (!user || !isOnline) return;
     
     try {
       const response = await axios.get(`${API_BASE}/api/subscription/status/${user.id}`);
@@ -589,7 +849,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   downloadTrack: async (track: Instrumental) => {
+    const { isOnline } = get();
+    
     if (!track.audio_url) return false;
+    if (!isOnline) return false;
     
     set((state) => ({
       downloads: {
@@ -658,5 +921,20 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   isTrackDownloaded: (trackId: string) => {
     return !!get().downloadedTracks[trackId];
+  },
+
+  canPlayTrack: (trackId: string) => {
+    const { isOnline, downloadedTracks } = get();
+    const isDownloaded = !!downloadedTracks[trackId];
+    
+    if (isDownloaded) {
+      return { canPlay: true };
+    }
+    
+    if (!isOnline) {
+      return { canPlay: false, reason: 'Internet connection required to play this audio.' };
+    }
+    
+    return { canPlay: true };
   },
 }));
