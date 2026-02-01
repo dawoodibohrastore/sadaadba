@@ -601,23 +601,33 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   stopPlayback: async () => {
-    const { sound } = get();
-    if (sound) {
+    if (Platform.OS !== 'web') {
       try {
-        await sound.stopAsync();
-        await sound.unloadAsync();
+        await TrackPlayer.stop();
+        await TrackPlayer.reset();
       } catch (e) {
         console.log('Error stopping playback:', e);
+      }
+    } else {
+      // Web fallback
+      const state = get() as any;
+      if (state._webSound) {
+        try {
+          await state._webSound.stopAsync();
+          await state._webSound.unloadAsync();
+        } catch (e) {
+          console.log('Error stopping web playback:', e);
+        }
       }
     }
     set({ 
       currentTrack: null, 
-      sound: null, 
       isPlaying: false, 
       playbackPosition: 0,
       playbackDuration: 0,
       queue: [],
-      queueIndex: 0
+      queueIndex: 0,
+      playbackError: null
     });
   },
 
@@ -625,6 +635,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     const newValue = !get().isLoopEnabled;
     set({ isLoopEnabled: newValue });
     AsyncStorage.setItem('isLoopEnabled', String(newValue));
+    
+    // Apply to TrackPlayer
+    if (Platform.OS !== 'web') {
+      TrackPlayer.setRepeatMode(newValue ? RepeatMode.Track : RepeatMode.Off).catch(() => {});
+    }
   },
 
   toggleShuffle: () => {
