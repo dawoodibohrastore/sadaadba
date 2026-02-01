@@ -334,6 +334,21 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '500',
   },
+  previewTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 152, 0, 0.2)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginLeft: 6,
+    gap: 3,
+  },
+  previewTagText: {
+    color: '#FF9800',
+    fontSize: 10,
+    fontWeight: '600',
+  },
   trackDuration: {
     color: '#8B8B8B',
     fontSize: 12,
