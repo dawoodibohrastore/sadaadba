@@ -5,12 +5,14 @@ import {
   StyleSheet,
   TouchableOpacity,
   Dimensions,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore } from '../store/appStore';
+import TrackPlayer, { useProgress, usePlaybackState, State } from 'react-native-track-player';
 
 const { width } = Dimensions.get('window');
 
@@ -20,15 +22,30 @@ export default function MiniPlayer() {
   const insets = useSafeAreaInsets();
   const {
     currentTrack,
-    isPlaying,
+    isPlaying: storeIsPlaying,
     isBuffering,
-    playbackPosition,
-    playbackDuration,
+    playbackPosition: storePosition,
+    playbackDuration: storeDuration,
     pauseTrack,
     resumeTrack,
     playNext,
     stopPlayback,
   } = useAppStore();
+
+  // Use TrackPlayer hooks on native platforms
+  const trackPlayerProgress = Platform.OS !== 'web' ? useProgress(500) : { position: 0, duration: 0 };
+  const trackPlayerState = Platform.OS !== 'web' ? usePlaybackState() : { state: State.None };
+  
+  // Determine actual values
+  const playbackPosition = Platform.OS !== 'web' 
+    ? trackPlayerProgress.position * 1000 
+    : storePosition;
+  const playbackDuration = Platform.OS !== 'web' 
+    ? (trackPlayerProgress.duration * 1000 || storeDuration)
+    : storeDuration;
+  const isPlaying = Platform.OS !== 'web'
+    ? trackPlayerState.state === State.Playing
+    : storeIsPlaying;
 
   // Don't show mini player on player screen or if no track
   if (!currentTrack || pathname === '/player') {
