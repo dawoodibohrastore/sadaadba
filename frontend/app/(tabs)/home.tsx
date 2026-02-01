@@ -319,6 +319,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 16,
   },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
   greeting: {
     fontSize: 14,
     color: 'rgba(255, 255, 255, 0.8)',
@@ -330,6 +335,14 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     marginTop: 4,
   },
+  offlineIndicator: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 152, 0, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   subscribedBadge: {
     width: 36,
     height: 36,
@@ -337,6 +350,22 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(201, 169, 97, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  offlineBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 152, 0, 0.1)',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginHorizontal: 20,
+    marginTop: 10,
+    borderRadius: 8,
+    gap: 8,
+  },
+  offlineBannerText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#FF9800',
   },
   content: {
     flex: 1,
