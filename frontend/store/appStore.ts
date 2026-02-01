@@ -227,16 +227,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         set({ isPlayerReady: true });
       }
       // Setup audio
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        staysActiveInBackground: true,
-        playsInSilentModeIOS: true,
-        interruptionModeIOS: InterruptionModeIOS.DuckOthers,
-        interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
-      });
-
       // Load player settings
       const savedLoop = await AsyncStorage.getItem('isLoopEnabled');
       const savedShuffle = await AsyncStorage.getItem('isShuffleEnabled');
@@ -244,6 +234,13 @@ export const useAppStore = create<AppState>((set, get) => ({
         isLoopEnabled: savedLoop === 'true',
         isShuffleEnabled: savedShuffle === 'true'
       });
+      
+      // Apply saved loop setting to TrackPlayer
+      if (Platform.OS !== 'web' && savedLoop === 'true') {
+        try {
+          await TrackPlayer.setRepeatMode(RepeatMode.Track);
+        } catch (e) {}
+      }
 
       // Load downloaded tracks first (always available offline)
       await get().loadDownloadedTracks();
