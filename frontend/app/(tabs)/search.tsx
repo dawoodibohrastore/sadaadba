@@ -29,6 +29,7 @@ export default function SearchScreen() {
     setCurrentTrack,
     isLoading,
     playTrack,
+    playPreview,
   } = useAppStore();
 
   const [localQuery, setLocalQuery] = useState(searchQuery);
