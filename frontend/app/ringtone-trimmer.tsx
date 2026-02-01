@@ -69,8 +69,7 @@ export default function RingtoneTrimmerScreen() {
   useEffect(() => {
     const loadAudio = async () => {
       if (!track) {
-        Alert.alert('Error', 'Track not found');
-        router.back();
+        setIsLoading(false);
         return;
       }
 
@@ -85,8 +84,10 @@ export default function RingtoneTrimmerScreen() {
         }
 
         if (!audioUri) {
-          Alert.alert('Error', 'Audio not available');
-          router.back();
+          Alert.alert('Error', 'Audio not available', [
+            { text: 'OK', onPress: () => router.back() }
+          ]);
+          setIsLoading(false);
           return;
         }
 
