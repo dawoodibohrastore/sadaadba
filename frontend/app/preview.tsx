@@ -264,7 +264,7 @@ export default function PreviewScreen() {
             </View>
             <Text style={styles.modalTitle}>Preview Ended</Text>
             <Text style={styles.modalDescription}>
-              Subscribe to Sadaa Instrumentals to enjoy the full track and unlock all premium content.
+              Subscribe to {APP_NAME} to enjoy the full track and unlock all premium content.
             </Text>
             <TouchableOpacity style={styles.modalSubscribeButton} onPress={handleSubscribe}>
               <Text style={styles.modalSubscribeText}>Subscribe Now - ₹53/month</Text>
