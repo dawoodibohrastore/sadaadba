@@ -67,6 +67,8 @@ export default function RingtoneTrimmerScreen() {
 
   // Initialize audio
   useEffect(() => {
+    let mounted = true;
+    
     const loadAudio = async () => {
       if (!track) {
         setIsLoading(false);
@@ -84,17 +86,19 @@ export default function RingtoneTrimmerScreen() {
         }
 
         if (!audioUri) {
-          Alert.alert('Error', 'Audio not available', [
-            { text: 'OK', onPress: () => router.back() }
-          ]);
-          setIsLoading(false);
+          if (mounted) {
+            setIsLoading(false);
+            Alert.alert('Error', 'Audio not available');
+          }
           return;
         }
 
         // Check online status for streaming
         if (!downloaded && !isOnline) {
-          Alert.alert('Offline', 'Please download this track first to set as ringtone.');
-          router.back();
+          if (mounted) {
+            setIsLoading(false);
+            Alert.alert('Offline', 'Please download this track first to set as ringtone.');
+          }
           return;
         }
 
@@ -105,23 +109,33 @@ export default function RingtoneTrimmerScreen() {
           onPlaybackStatusUpdate
         );
 
-        if (status.isLoaded) {
-          setDuration(status.durationMillis || 0);
-          const initialEnd = Math.min(status.durationMillis || MAX_RINGTONE_DURATION, MAX_RINGTONE_DURATION);
-          setEndTime(initialEnd);
-          endHandleX.setValue(timeToPosition(initialEnd));
-        }
+        if (mounted) {
+          if (status.isLoaded) {
+            setDuration(status.durationMillis || 0);
+            const initialEnd = Math.min(status.durationMillis || MAX_RINGTONE_DURATION, MAX_RINGTONE_DURATION);
+            setEndTime(initialEnd);
+          }
 
-        setSound(newSound);
-        setIsLoading(false);
+          setSound(newSound);
+          setIsLoading(false);
+        }
       } catch (error) {
         console.error('Error loading audio:', error);
-        Alert.alert('Error', 'Failed to load audio');
-        router.back();
+        if (mounted) {
+          setIsLoading(false);
+          Alert.alert('Error', 'Failed to load audio');
+        }
       }
     };
 
-    loadAudio();
+    // Small delay to ensure component is fully mounted
+    const timer = setTimeout(loadAudio, 100);
+    
+    return () => {
+      mounted = false;
+      clearTimeout(timer);
+    };
+  }, [track?.id]);
 
     return () => {
       if (sound) {
