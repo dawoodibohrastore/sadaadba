@@ -540,23 +540,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   stopPlayback: async () => {
-    if (Platform.OS !== 'web') {
+    const state = get() as any;
+    if (state._webSound) {
       try {
-        await TrackPlayer.stop();
-        await TrackPlayer.reset();
+        await state._webSound.stopAsync();
+        await state._webSound.unloadAsync();
       } catch (e) {
         console.log('Error stopping playback:', e);
-      }
-    } else {
-      // Web fallback
-      const state = get() as any;
-      if (state._webSound) {
-        try {
-          await state._webSound.stopAsync();
-          await state._webSound.unloadAsync();
-        } catch (e) {
-          console.log('Error stopping web playback:', e);
-        }
       }
     }
     set({ 
@@ -566,7 +556,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       playbackDuration: 0,
       queue: [],
       queueIndex: 0,
-      playbackError: null
+      playbackError: null,
+      _webSound: null,
     });
   },
 
