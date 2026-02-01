@@ -390,6 +390,17 @@ export default function PlayerScreen() {
           )}
         </TouchableOpacity>
         
+        <TouchableOpacity 
+          style={styles.controlButton} 
+          onPress={() => router.push({ pathname: '/ringtone-trimmer', params: { trackId: currentTrack.id } })}
+        >
+          <Ionicons 
+            name="notifications-outline" 
+            size={22} 
+            color="rgba(255, 255, 255, 0.5)" 
+          />
+        </TouchableOpacity>
+        
         <TouchableOpacity style={styles.controlButton} onPress={toggleLoop}>
           <Ionicons 
             name="repeat" 
