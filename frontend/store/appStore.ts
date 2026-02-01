@@ -177,8 +177,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   isPlaying: false,
   playbackPosition: 0,
   playbackDuration: 0,
-  sound: null,
   isBuffering: false,
+  isPlayerReady: false,
+  playbackError: null,
   isLoopEnabled: false,
   isShuffleEnabled: false,
   queue: [],
@@ -193,6 +194,38 @@ export const useAppStore = create<AppState>((set, get) => ({
   initializeApp: async () => {
     set({ isLoading: true });
     try {
+      // Initialize TrackPlayer first (only on native platforms)
+      if (Platform.OS !== 'web') {
+        const playerReady = await setupPlayer();
+        set({ isPlayerReady: playerReady });
+        
+        // Set up event listeners for TrackPlayer
+        if (playerReady) {
+          TrackPlayer.addEventListener(Event.PlaybackState, (event) => {
+            const isPlaying = event.state === State.Playing;
+            const isBuffering = event.state === State.Buffering || event.state === State.Loading;
+            set({ isPlaying, isBuffering });
+          });
+          
+          TrackPlayer.addEventListener(Event.PlaybackActiveTrackChanged, (event) => {
+            if (event.track) {
+              const { instrumentals } = get();
+              const track = instrumentals.find(t => t.id === event.track?.id);
+              if (track) {
+                set({ currentTrack: track });
+              }
+            }
+          });
+          
+          TrackPlayer.addEventListener(Event.PlaybackError, (event) => {
+            console.error('Playback error:', event);
+            set({ playbackError: 'Playback error. Please check your connection.', isPlaying: false });
+          });
+        }
+      } else {
+        // For web, we'll use a fallback
+        set({ isPlayerReady: true });
+      }
       // Setup audio
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
