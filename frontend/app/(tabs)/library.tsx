@@ -80,6 +80,8 @@ export default function LibraryScreen() {
     const success = await downloadTrack(track);
     if (success) {
       Alert.alert('Downloaded', `"${track.title}" is now available offline.`);
+    } else {
+      Alert.alert('Error', 'Failed to download. Please try again.');
     }
   };
 
