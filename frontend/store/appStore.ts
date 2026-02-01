@@ -226,14 +226,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         isLoopEnabled: savedLoop === 'true',
         isShuffleEnabled: savedShuffle === 'true'
       });
-      
-      // Apply saved loop setting to TrackPlayer
-      if (Platform.OS !== 'web' && savedLoop === 'true' && TrackPlayer) {
-        try {
-          const { RepeatMode } = await import('react-native-track-player');
-          await TrackPlayer.setRepeatMode(RepeatMode.Track);
-        } catch (e) {}
-      }
 
       // Load downloaded tracks first (always available offline)
       await get().loadDownloadedTracks();
