@@ -888,9 +888,15 @@ export const useAppStore = create<AppState>((set, get) => ({
       );
       
       if (result) {
+        // Add track metadata to the download result for offline access
+        const downloadWithMetadata = {
+          ...result,
+          trackMetadata: track
+        };
+        
         const newDownloadedTracks = {
           ...get().downloadedTracks,
-          [track.id]: result
+          [track.id]: downloadWithMetadata
         };
         
         set((state) => ({
@@ -901,7 +907,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           downloadedTracks: newDownloadedTracks
         }));
         
-        // Save to local storage for offline persistence
+        // Save to local storage for offline persistence (includes track metadata)
         await AsyncStorage.setItem(STORAGE_KEYS.DOWNLOADED_TRACKS, JSON.stringify(newDownloadedTracks));
         
         return true;
