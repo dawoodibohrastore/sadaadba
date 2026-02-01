@@ -182,9 +182,9 @@ export default function PlayerScreen() {
   const router = useRouter();
   const {
     currentTrack,
-    isPlaying,
-    playbackPosition,
-    playbackDuration,
+    isPlaying: storeIsPlaying,
+    playbackPosition: storePosition,
+    playbackDuration: storeDuration,
     isBuffering,
     pauseTrack,
     resumeTrack,
@@ -204,11 +204,35 @@ export default function PlayerScreen() {
     playlists,
     addToPlaylist,
     createPlaylist,
+    isOnline,
+    playbackError,
   } = useAppStore();
+
+  // Use TrackPlayer hooks on native platforms
+  const trackPlayerProgress = Platform.OS !== 'web' ? useProgress(500) : { position: 0, duration: 0 };
+  const trackPlayerState = Platform.OS !== 'web' ? usePlaybackState() : { state: State.None };
+  
+  // Determine actual playback values (TrackPlayer on native, store on web)
+  const playbackPosition = Platform.OS !== 'web' 
+    ? trackPlayerProgress.position * 1000 
+    : storePosition;
+  const playbackDuration = Platform.OS !== 'web' 
+    ? (trackPlayerProgress.duration * 1000 || storeDuration)
+    : storeDuration;
+  const isPlaying = Platform.OS !== 'web'
+    ? trackPlayerState.state === State.Playing
+    : storeIsPlaying;
 
   const [showPlaylistModal, setShowPlaylistModal] = useState(false);
   const [showCreatePlaylist, setShowCreatePlaylist] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
+
+  // Show error alert if there's a playback error
+  useEffect(() => {
+    if (playbackError) {
+      Alert.alert('Playback Error', playbackError);
+    }
+  }, [playbackError]);
 
   const handlePlayPause = async () => {
     if (isPlaying) {
