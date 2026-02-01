@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   Dimensions,
   RefreshControl,
-  FlatList,
   ActivityIndicator,
   Alert,
 } from 'react-native';
@@ -15,9 +14,56 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import Svg, { Path } from 'react-native-svg';
 import { useAppStore, Instrumental } from '../../store/appStore';
+import { COLORS, APP_NAME } from '../../constants/theme';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
+
+// Islamic Pattern Background Component
+const IslamicPatternBg = () => {
+  const size = 45;
+  const rows = Math.ceil(height / size) + 2;
+  const cols = Math.ceil(width / size) + 2;
+  
+  const elements = [];
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const x = col * size + (row % 2 === 0 ? 0 : size / 2);
+      const y = row * size;
+      
+      elements.push(
+        <Path
+          key={`d-${row}-${col}`}
+          d={`M ${x} ${y - size/3} L ${x + size/3} ${y} L ${x} ${y + size/3} L ${x - size/3} ${y} Z`}
+          stroke="rgba(255, 255, 255, 0.06)"
+          strokeWidth={0.5}
+          fill="none"
+        />
+      );
+    }
+  }
+  
+  return (
+    <View style={patternStyles.container} pointerEvents="none">
+      <Svg width={width} height={height * 2} style={patternStyles.svg}>
+        {elements}
+      </Svg>
+    </View>
+  );
+};
+
+const patternStyles = StyleSheet.create({
+  container: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: 'hidden',
+  },
+  svg: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+  },
+});
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -29,10 +75,8 @@ export default function HomeScreen() {
     selectedMood,
     setSelectedMood,
     isSubscribed,
-    setCurrentTrack,
     fetchInstrumentals,
     fetchFeaturedInstrumentals,
-    isLoading,
     initializeApp,
     playTrack,
     playPreview,
@@ -43,7 +87,6 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
 
-  // Initialize data on mount
   useEffect(() => {
     const loadData = async () => {
       setInitialLoading(true);
@@ -62,7 +105,6 @@ export default function HomeScreen() {
   }, [selectedMood, isOnline]);
 
   const handleTrackPress = async (track: Instrumental) => {
-    // Check if track can be played
     const { canPlay, reason } = useAppStore.getState().canPlayTrack(track.id);
     
     if (!canPlay) {
@@ -71,12 +113,10 @@ export default function HomeScreen() {
     }
     
     if (track.is_premium && !isSubscribed) {
-      // Play preview for premium tracks if preview is available
       if (track.preview_start !== null && track.preview_end !== null) {
         await playPreview(track);
         router.push('/preview');
       } else {
-        // No preview available, go to subscription page
         router.push('/subscription');
       }
     } else {
@@ -88,21 +128,17 @@ export default function HomeScreen() {
   if (initialLoading) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
-        <LinearGradient
-          colors={['#4A3463', '#FAF8F5']}
-          style={styles.headerGradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
-        >
-          <View style={styles.header}>
-            <View>
-              <Text style={styles.greeting}>Salaam</Text>
-              <Text style={styles.headerTitle}>Sadaa Instrumentals</Text>
+        <IslamicPatternBg />
+        <View style={styles.header}>
+          <View style={styles.logoContainer}>
+            <View style={styles.logoIcon}>
+              <Ionicons name="musical-notes" size={20} color={COLORS.accentGold} />
             </View>
+            <Text style={styles.headerTitle}>{APP_NAME}</Text>
           </View>
-        </LinearGradient>
+        </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#4A3463" />
+          <ActivityIndicator size="large" color={COLORS.accentBlue} />
           <Text style={styles.loadingText}>Loading sacred melodies...</Text>
         </View>
       </View>
@@ -123,14 +159,14 @@ export default function HomeScreen() {
         activeOpacity={0.9}
       >
         <LinearGradient
-          colors={[featured.thumbnail_color, '#1A1225']}
+          colors={[COLORS.accentBlue, '#3A4AE0']}
           style={styles.featuredGradient}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
         >
           <View style={styles.featuredContent}>
             <View style={styles.featuredBadge}>
-              <Ionicons name="star" size={12} color="#C9A961" />
+              <Ionicons name="star" size={12} color={COLORS.accentGold} />
               <Text style={styles.featuredBadgeText}>FEATURED</Text>
             </View>
             <Text style={styles.featuredTitle}>{featured.title}</Text>
@@ -142,13 +178,13 @@ export default function HomeScreen() {
             </View>
             <View style={styles.playButtonContainer}>
               <View style={styles.playButton}>
-                <Ionicons name="play" size={20} color="#4A3463" />
+                <Ionicons name="play" size={20} color={COLORS.primaryBg} />
               </View>
               <Text style={styles.playButtonText}>Play Now</Text>
             </View>
           </View>
           <View style={styles.featuredIcon}>
-            <Ionicons name="musical-notes" size={80} color="rgba(201, 169, 97, 0.15)" />
+            <Ionicons name="musical-notes" size={80} color="rgba(255, 255, 255, 0.15)" />
           </View>
         </LinearGradient>
       </TouchableOpacity>
@@ -188,50 +224,48 @@ export default function HomeScreen() {
     const hasPreview = track.is_premium && !isSubscribed && track.preview_start !== null && track.preview_end !== null;
     
     return (
-    <TouchableOpacity
-      key={track.id}
-      style={styles.trackCard}
-      onPress={() => handleTrackPress(track)}
-      activeOpacity={0.8}
-    >
-      <LinearGradient
-        colors={[track.thumbnail_color, '#2D1F3D']}
-        style={styles.trackThumbnail}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
+      <TouchableOpacity
+        key={track.id}
+        style={styles.trackCard}
+        onPress={() => handleTrackPress(track)}
+        activeOpacity={0.8}
       >
-        <Ionicons name="musical-note" size={24} color="rgba(255, 255, 255, 0.5)" />
-        {track.is_premium && !isSubscribed && (
-          <View style={styles.lockBadge}>
-            <Ionicons name="lock-closed" size={12} color="#C9A961" />
+        <LinearGradient
+          colors={[track.thumbnail_color, COLORS.cardBg]}
+          style={styles.trackThumbnail}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <Ionicons name="musical-note" size={24} color="rgba(255, 255, 255, 0.5)" />
+          {track.is_premium && !isSubscribed && (
+            <View style={styles.lockBadge}>
+              <Ionicons name="lock-closed" size={12} color={COLORS.accentGold} />
+            </View>
+          )}
+          {hasPreview && (
+            <View style={styles.previewBadge}>
+              <Ionicons name="play-circle" size={10} color="#FFFFFF" />
+              <Text style={styles.previewBadgeText}>Preview</Text>
+            </View>
+          )}
+          {downloaded && (
+            <View style={styles.downloadedBadge}>
+              <Ionicons name="cloud-done" size={12} color={COLORS.downloaded} />
+            </View>
+          )}
+        </LinearGradient>
+        <View style={styles.trackInfo}>
+          <Text style={styles.trackTitle} numberOfLines={1}>{track.title}</Text>
+          <View style={styles.trackMeta}>
+            <View style={styles.smallMoodTag}>
+              <Text style={styles.smallMoodTagText}>{track.mood}</Text>
+            </View>
+            <Text style={styles.trackDuration}>{track.duration_formatted}</Text>
           </View>
-        )}
-        {hasPreview && (
-          <View style={styles.previewBadge}>
-            <Ionicons name="play-circle" size={10} color="#FF9800" />
-            <Text style={styles.previewBadgeText}>Preview</Text>
-          </View>
-        )}
-        {downloaded && (
-          <View style={styles.downloadedBadge}>
-            <Ionicons name="cloud-done" size={12} color="#4CAF50" />
-          </View>
-        )}
-      </LinearGradient>
-      <View style={styles.trackInfo}>
-        <Text style={styles.trackTitle} numberOfLines={1}>
-          {track.title}
-        </Text>
-        <View style={styles.trackMeta}>
-          <View style={styles.smallMoodTag}>
-            <Text style={styles.smallMoodTagText}>{track.mood}</Text>
-          </View>
-          <Text style={styles.trackDuration}>{track.duration_formatted}</Text>
         </View>
-      </View>
-    </TouchableOpacity>
-  )};
-
+      </TouchableOpacity>
+    );
+  };
 
   const renderSection = (title: string, tracks: Instrumental[], showPremiumBadge?: boolean) => {
     if (tracks.length === 0) return null;
@@ -242,7 +276,7 @@ export default function HomeScreen() {
           <Text style={styles.sectionTitle}>{title}</Text>
           {showPremiumBadge && (
             <View style={styles.premiumBadge}>
-              <Ionicons name="diamond" size={12} color="#C9A961" />
+              <Ionicons name="diamond" size={12} color={COLORS.accentGold} />
               <Text style={styles.premiumBadgeText}>Premium</Text>
             </View>
           )}
@@ -260,31 +294,32 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <LinearGradient
-        colors={['#4A3463', '#FAF8F5']}
-        style={styles.headerGradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
-      >
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.greeting}>Salaam</Text>
-            <Text style={styles.headerTitle}>Sadaa Instrumentals</Text>
+      <IslamicPatternBg />
+      
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.logoContainer}>
+          <View style={styles.logoIcon}>
+            <Ionicons name="musical-notes" size={20} color={COLORS.accentGold} />
           </View>
-          <View style={styles.headerRight}>
-            {!isOnline && (
-              <View style={styles.offlineIndicator}>
-                <Ionicons name="cloud-offline" size={14} color="#FF9800" />
-              </View>
-            )}
-            {isSubscribed && (
-              <View style={styles.subscribedBadge}>
-                <Ionicons name="diamond" size={14} color="#C9A961" />
-              </View>
-            )}
-          </View>
+          <Text style={styles.headerTitle}>{APP_NAME}</Text>
         </View>
-      </LinearGradient>
+        <View style={styles.headerRight}>
+          {!isOnline && (
+            <View style={styles.offlineIndicator}>
+              <Ionicons name="cloud-offline" size={14} color={COLORS.offline} />
+            </View>
+          )}
+          {isSubscribed && (
+            <View style={styles.subscribedBadge}>
+              <Ionicons name="diamond" size={14} color={COLORS.accentGold} />
+            </View>
+          )}
+          <TouchableOpacity style={styles.notificationBtn}>
+            <Ionicons name="notifications-outline" size={22} color={COLORS.textPrimary} />
+          </TouchableOpacity>
+        </View>
+      </View>
 
       <ScrollView
         style={styles.content}
@@ -293,14 +328,14 @@ export default function HomeScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#4A3463"
+            tintColor={COLORS.accentBlue}
           />
         }
       >
         {/* Offline Banner */}
         {!isOnline && (
           <View style={styles.offlineBanner}>
-            <Ionicons name="cloud-offline" size={16} color="#FF9800" />
+            <Ionicons name="cloud-offline" size={16} color={COLORS.offline} />
             <Text style={styles.offlineBannerText}>You're offline. Only downloaded tracks can be played.</Text>
           </View>
         )}
@@ -322,69 +357,81 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAF8F5',
-  },
-  headerGradient: {
-    paddingBottom: 20,
+    backgroundColor: COLORS.primaryBg,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
+    zIndex: 10,
+  },
+  logoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  logoIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(201, 169, 97, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
   },
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
   },
-  greeting: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontWeight: '400',
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    marginTop: 4,
-  },
   offlineIndicator: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(255, 152, 0, 0.3)',
+    backgroundColor: 'rgba(255, 152, 0, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   subscribedBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(201, 169, 97, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  notificationBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(201, 169, 97, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   offlineBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 152, 0, 0.1)',
+    backgroundColor: 'rgba(255, 152, 0, 0.15)',
     paddingHorizontal: 16,
     paddingVertical: 10,
     marginHorizontal: 20,
     marginTop: 10,
-    borderRadius: 8,
+    borderRadius: 10,
     gap: 8,
   },
   offlineBannerText: {
     flex: 1,
     fontSize: 13,
-    color: '#FF9800',
+    color: COLORS.offline,
   },
   content: {
     flex: 1,
-    marginTop: -10,
   },
   featuredContainer: {
     marginHorizontal: 20,
@@ -392,10 +439,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     elevation: 4,
-    shadowColor: '#4A3463',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
   },
   featuredGradient: {
     padding: 20,
@@ -410,14 +453,14 @@ const styles = StyleSheet.create({
   featuredBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(201, 169, 97, 0.2)',
+    backgroundColor: 'rgba(201, 169, 97, 0.25)',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
     alignSelf: 'flex-start',
   },
   featuredBadgeText: {
-    color: '#C9A961',
+    color: COLORS.accentGold,
     fontSize: 10,
     fontWeight: '600',
     marginLeft: 4,
@@ -426,7 +469,7 @@ const styles = StyleSheet.create({
   featuredTitle: {
     fontSize: 22,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: COLORS.textPrimary,
     marginTop: 12,
   },
   featuredMeta: {
@@ -435,13 +478,13 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   moodTag: {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 10,
   },
   moodTagText: {
-    color: '#FFFFFF',
+    color: COLORS.textPrimary,
     fontSize: 12,
     fontWeight: '500',
   },
@@ -459,12 +502,12 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#C9A961',
+    backgroundColor: COLORS.textPrimary,
     justifyContent: 'center',
     alignItems: 'center',
   },
   playButtonText: {
-    color: '#FFFFFF',
+    color: COLORS.textPrimary,
     fontSize: 14,
     fontWeight: '500',
     marginLeft: 10,
@@ -477,7 +520,7 @@ const styles = StyleSheet.create({
   filterLabel: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#8B8B8B',
+    color: COLORS.textSecondary,
     marginLeft: 20,
     marginTop: 24,
     marginBottom: 12,
@@ -490,22 +533,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.buttonSecondary,
     marginRight: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(74, 52, 99, 0.1)',
   },
   moodChipActive: {
-    backgroundColor: '#4A3463',
-    borderColor: '#4A3463',
+    backgroundColor: COLORS.accentBlue,
   },
   moodChipText: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#4A3463',
+    color: COLORS.textSecondary,
   },
   moodChipTextActive: {
-    color: '#FFFFFF',
+    color: COLORS.textPrimary,
   },
   section: {
     marginTop: 24,
@@ -520,7 +560,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#2D2D2D',
+    color: COLORS.textPrimary,
   },
   premiumBadge: {
     flexDirection: 'row',
@@ -531,7 +571,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   premiumBadgeText: {
-    color: '#C9A961',
+    color: COLORS.accentGold,
     fontSize: 12,
     fontWeight: '500',
     marginLeft: 4,
@@ -542,14 +582,9 @@ const styles = StyleSheet.create({
   trackCard: {
     width: 140,
     marginRight: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.cardBg,
     borderRadius: 12,
     overflow: 'hidden',
-    elevation: 2,
-    shadowColor: '#4A3463',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
   },
   trackThumbnail: {
     height: 100,
@@ -574,14 +609,14 @@ const styles = StyleSheet.create({
     left: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 152, 0, 0.9)',
+    backgroundColor: COLORS.preview,
     paddingHorizontal: 6,
     paddingVertical: 3,
     borderRadius: 8,
     gap: 3,
   },
   previewBadgeText: {
-    color: '#FFFFFF',
+    color: COLORS.textPrimary,
     fontSize: 8,
     fontWeight: '700',
   },
@@ -602,7 +637,7 @@ const styles = StyleSheet.create({
   trackTitle: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#2D2D2D',
+    color: COLORS.textPrimary,
   },
   trackMeta: {
     flexDirection: 'row',
@@ -611,18 +646,18 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   smallMoodTag: {
-    backgroundColor: 'rgba(74, 52, 99, 0.1)',
+    backgroundColor: 'rgba(86, 101, 255, 0.2)',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
   },
   smallMoodTagText: {
-    color: '#4A3463',
+    color: COLORS.accentBlue,
     fontSize: 10,
     fontWeight: '500',
   },
   trackDuration: {
-    color: '#8B8B8B',
+    color: COLORS.textMuted,
     fontSize: 11,
   },
   bottomSpacing: {
@@ -636,6 +671,6 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 14,
-    color: '#8B8B8B',
+    color: COLORS.textSecondary,
   },
 });
