@@ -31,6 +31,9 @@ export interface Instrumental {
   thumbnail_color: string;
   file_size: number;
   play_count: number;
+  // Preview settings for premium tracks (in seconds)
+  preview_start: number | null;
+  preview_end: number | null;
   created_at: string;
 }
 
