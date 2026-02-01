@@ -11,7 +11,7 @@ export interface DownloadedTrack {
   localUri: string;
   downloadedAt: string;
   size: number;
-  trackMetadata?: Instrumental; // Store track metadata for offline access
+  trackMetadata?: any; // Store track metadata for offline access
 }
 
 // Check if downloads are supported on this platform
