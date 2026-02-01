@@ -418,7 +418,7 @@ export default function PlayerScreen() {
         
         <TouchableOpacity 
           style={styles.controlButton} 
-          onPress={() => router.push({ pathname: '/ringtone-trimmer', params: { trackId: currentTrack.id } })}
+          onPress={() => setShowRingtoneModal(true)}
         >
           <Ionicons 
             name="notifications-outline" 
