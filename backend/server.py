@@ -118,15 +118,15 @@ class SubscriptionCreate(BaseModel):
 
 SAMPLE_INSTRUMENTALS = [
     # Featured Instrumentals
-    {"title": "Mawla Ya Salli - Peaceful", "mood": "Spiritual", "duration": 245, "duration_formatted": "4:05", "is_premium": False, "is_featured": True, "thumbnail_color": "#4A3463", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3", "file_size": 4500000},
+    {"title": "Mawla Ya Salli - Peaceful", "mood": "Spiritual", "duration": 245, "duration_formatted": "4:05", "is_premium": False, "is_featured": True, "thumbnail_color": "#4A3463", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3", "file_size": 4500000, "preview_start": 60, "preview_end": 90},
     {"title": "Nasheed of Dawn", "mood": "Calm", "duration": 312, "duration_formatted": "5:12", "is_premium": True, "is_featured": True, "thumbnail_color": "#2D5A4A", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3", "file_size": 5200000, "preview_start": 70, "preview_end": 100},
     
     # Free Instrumentals
-    {"title": "Morning Dhikr", "mood": "Calm", "duration": 180, "duration_formatted": "3:00", "is_premium": False, "is_featured": False, "thumbnail_color": "#5A4A63", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3", "file_size": 3200000},
-    {"title": "Peaceful Heart", "mood": "Soft", "duration": 210, "duration_formatted": "3:30", "is_premium": False, "is_featured": False, "thumbnail_color": "#4A5A63", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3", "file_size": 3800000},
-    {"title": "Blessed Sunrise", "mood": "Spiritual", "duration": 195, "duration_formatted": "3:15", "is_premium": False, "is_featured": False, "thumbnail_color": "#634A5A", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3", "file_size": 3500000},
-    {"title": "Gentle Breeze", "mood": "Calm", "duration": 240, "duration_formatted": "4:00", "is_premium": False, "is_featured": False, "thumbnail_color": "#4A6357", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3", "file_size": 4200000},
-    {"title": "Silent Prayer", "mood": "Soft", "duration": 165, "duration_formatted": "2:45", "is_premium": False, "is_featured": False, "thumbnail_color": "#574A63", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3", "file_size": 2900000},
+    {"title": "Morning Dhikr", "mood": "Calm", "duration": 180, "duration_formatted": "3:00", "is_premium": False, "is_featured": False, "thumbnail_color": "#5A4A63", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3", "file_size": 3200000, "preview_start": 60, "preview_end": 90},
+    {"title": "Peaceful Heart", "mood": "Soft", "duration": 210, "duration_formatted": "3:30", "is_premium": False, "is_featured": False, "thumbnail_color": "#4A5A63", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3", "file_size": 3800000, "preview_start": 60, "preview_end": 90},
+    {"title": "Blessed Sunrise", "mood": "Spiritual", "duration": 195, "duration_formatted": "3:15", "is_premium": False, "is_featured": False, "thumbnail_color": "#634A5A", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3", "file_size": 3500000, "preview_start": 60, "preview_end": 90},
+    {"title": "Gentle Breeze", "mood": "Calm", "duration": 240, "duration_formatted": "4:00", "is_premium": False, "is_featured": False, "thumbnail_color": "#4A6357", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3", "file_size": 4200000, "preview_start": 60, "preview_end": 90},
+    {"title": "Silent Prayer", "mood": "Soft", "duration": 165, "duration_formatted": "2:45", "is_premium": False, "is_featured": False, "thumbnail_color": "#574A63", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3", "file_size": 2900000, "preview_start": 60, "preview_end": 90},
     
     # Premium Instrumentals (all with preview ranges)
     {"title": "Ya Sahib al-Taj", "mood": "Spiritual", "duration": 420, "duration_formatted": "7:00", "is_premium": True, "is_featured": False, "thumbnail_color": "#634A4A", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3", "file_size": 7200000, "preview_start": 60, "preview_end": 90},
