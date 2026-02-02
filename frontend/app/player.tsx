@@ -241,7 +241,8 @@ export default function PlayerScreen() {
       };
     }
     // Fallback: use first 30 seconds if no preview defined
-    const fallbackEnd = Math.min(30000, playbackDuration);
+    const trackDurationMs = (currentTrack?.duration || 30) * 1000;
+    const fallbackEnd = Math.min(30000, trackDurationMs);
     return { startTime: 0, endTime: fallbackEnd };
   };
 
