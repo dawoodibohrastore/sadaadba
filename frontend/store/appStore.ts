@@ -177,7 +177,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   favorites: [],
   favoriteIds: [],
   playlists: [],
-  moods: ['All', 'Calm', 'Drums', 'Spiritual', 'Soft', 'Energetic'],
+  moods: ['All'], // Will be populated dynamically from instrumentals
   isLoading: false,
   selectedMood: 'All',
   searchQuery: '',
