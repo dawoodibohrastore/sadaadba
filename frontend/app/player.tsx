@@ -31,7 +31,6 @@ import {
 
 const { width, height } = Dimensions.get('window');
 const SEEKBAR_WIDTH = width - 80;
-const MAX_RINGTONE_DURATION = 30000; // 30 seconds
 
 // Custom SeekBar component
 const SeekBar = ({ 
