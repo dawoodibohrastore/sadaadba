@@ -426,21 +426,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
-  offlineIndicator: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+  statusBadge: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     backgroundColor: 'rgba(255, 152, 0, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  subscribedBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+  premiumBadge: {
     backgroundColor: 'rgba(201, 169, 97, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   notificationBtn: {
     width: 36,
