@@ -233,7 +233,7 @@ export default function PlayerScreen() {
   
   // Ringtone: Get the preview start/end from track data
   const getRingtoneRange = () => {
-    if (currentTrack?.preview_start !== undefined && currentTrack?.preview_end !== undefined) {
+    if (currentTrack?.preview_start != null && currentTrack?.preview_end != null) {
       // Use preview times from track data (in seconds, convert to ms)
       return {
         startTime: currentTrack.preview_start * 1000,
