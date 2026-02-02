@@ -407,13 +407,13 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   logoIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: 'rgba(201, 169, 97, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 10,
+    marginRight: 8,
   },
   headerTitle: {
     fontSize: 18,
