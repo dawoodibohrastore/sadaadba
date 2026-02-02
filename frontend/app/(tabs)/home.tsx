@@ -459,7 +459,7 @@ const styles = StyleSheet.create({
   },
   notificationBadgeText: {
     color: '#FFFFFF',
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '700',
   },
   menuBtn: {
