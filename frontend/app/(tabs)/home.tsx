@@ -87,6 +87,7 @@ export default function HomeScreen() {
 
   const [refreshing, setRefreshing] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     const loadData = async () => {
@@ -95,6 +96,20 @@ export default function HomeScreen() {
       setInitialLoading(false);
     };
     loadData();
+
+    // Subscribe to notification count updates
+    const loadUnreadCount = async () => {
+      const count = await notificationService.getUnreadCount();
+      setUnreadCount(count);
+    };
+    loadUnreadCount();
+
+    const unsubscribe = notificationService.subscribe(async () => {
+      const count = await notificationService.getUnreadCount();
+      setUnreadCount(count);
+    });
+
+    return unsubscribe;
   }, []);
 
   const onRefresh = useCallback(async () => {
