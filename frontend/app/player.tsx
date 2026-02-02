@@ -544,7 +544,7 @@ export default function PlayerScreen() {
         </View>
       </Modal>
 
-      {/* Ringtone Trimmer Modal */}
+      {/* Ringtone Modal - Simplified (Auto-trim based on preview_start/preview_end) */}
       <Modal
         visible={showRingtoneModal}
         animationType="slide"
@@ -573,71 +573,17 @@ export default function PlayerScreen() {
               </View>
             </View>
 
-            {/* Trim Instructions */}
-            <View style={styles.ringtoneInstructions}>
-              <Ionicons name="information-circle" size={18} color="#8B8B8B" />
-              <Text style={styles.ringtoneInstructionText}>
-                Select a portion (max 30 seconds) to use as ringtone
-              </Text>
-            </View>
-
-            {/* Time Selection */}
-            <View style={styles.ringtoneTimeRow}>
-              <View style={styles.ringtoneTimeInput}>
-                <Text style={styles.ringtoneTimeLabel}>Start</Text>
-                <Text style={styles.ringtoneTimeValue}>
-                  {formatTime(ringtoneStartTime)}
+            {/* Ringtone Preview Info */}
+            <View style={styles.ringtonePreviewInfo}>
+              <Ionicons name="cut-outline" size={20} color="#4A3463" />
+              <View style={styles.ringtonePreviewDetails}>
+                <Text style={styles.ringtonePreviewTitle}>Ringtone Portion</Text>
+                <Text style={styles.ringtonePreviewTime}>
+                  {currentTrack?.preview_start !== undefined && currentTrack?.preview_end !== undefined
+                    ? `${formatTime(currentTrack.preview_start * 1000)} - ${formatTime(currentTrack.preview_end * 1000)} (${formatRingtoneDuration((currentTrack.preview_end - currentTrack.preview_start) * 1000)})`
+                    : `0:00 - ${formatTime(Math.min(30000, playbackDuration))} (${formatRingtoneDuration(Math.min(30000, playbackDuration))})`
+                  }
                 </Text>
-              </View>
-              <View style={styles.ringtoneDuration}>
-                <Text style={styles.ringtoneDurationLabel}>Duration</Text>
-                <Text style={[
-                  styles.ringtoneDurationValue,
-                  ringtoneEndTime - ringtoneStartTime > MAX_RINGTONE_DURATION && styles.ringtoneDurationError
-                ]}>
-                  {formatRingtoneDuration(ringtoneEndTime - ringtoneStartTime)}
-                </Text>
-              </View>
-              <View style={styles.ringtoneTimeInput}>
-                <Text style={styles.ringtoneTimeLabel}>End</Text>
-                <Text style={styles.ringtoneTimeValue}>
-                  {formatTime(ringtoneEndTime)}
-                </Text>
-              </View>
-            </View>
-
-            {/* Quick Select Options */}
-            <View style={styles.ringtoneQuickSelect}>
-              <Text style={styles.ringtoneQuickLabel}>Quick Select:</Text>
-              <View style={styles.ringtoneQuickButtons}>
-                <TouchableOpacity 
-                  style={styles.ringtoneQuickButton}
-                  onPress={() => {
-                    setRingtoneStartTime(0);
-                    setRingtoneEndTime(Math.min(15000, playbackDuration));
-                  }}
-                >
-                  <Text style={styles.ringtoneQuickButtonText}>First 15s</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={styles.ringtoneQuickButton}
-                  onPress={() => {
-                    setRingtoneStartTime(0);
-                    setRingtoneEndTime(Math.min(30000, playbackDuration));
-                  }}
-                >
-                  <Text style={styles.ringtoneQuickButtonText}>First 30s</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={styles.ringtoneQuickButton}
-                  onPress={() => {
-                    const start = Math.max(0, playbackDuration - 30000);
-                    setRingtoneStartTime(start);
-                    setRingtoneEndTime(playbackDuration);
-                  }}
-                >
-                  <Text style={styles.ringtoneQuickButtonText}>Last 30s</Text>
-                </TouchableOpacity>
               </View>
             </View>
 
@@ -659,6 +605,8 @@ export default function PlayerScreen() {
               ]}
               onPress={async () => {
                 if (!currentTrack) return;
+                
+                const ringtoneRange = getRingtoneRange();
                 
                 // Check platform
                 if (!canSetRingtone()) {
@@ -699,7 +647,7 @@ export default function PlayerScreen() {
                     audioUri,
                     currentTrack.id,
                     currentTrack.title,
-                    { startTime: ringtoneStartTime, endTime: ringtoneEndTime }
+                    { startTime: ringtoneRange.startTime, endTime: ringtoneRange.endTime }
                   );
                   
                   if (preparedFile) {
