@@ -470,8 +470,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     const { downloadedTracks, isOnline } = get();
     
     // Get preview times from track (in seconds, convert to milliseconds)
-    const previewStart = (track.preview_start || 0) * 1000;
-    const previewEnd = (track.preview_end || 30) * 1000;
+    const previewStart = (track.preview_start ?? 0) * 1000;
+    const previewEnd = (track.preview_end ?? 30) * 1000;
+    
+    console.log(`Playing preview: ${previewStart}ms to ${previewEnd}ms`);
     
     // Check if track can be played
     const isDownloaded = !!downloadedTracks[track.id];
@@ -494,6 +496,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       
       // Use expo-av for audio playback
       const { Audio } = await import('expo-av');
+      
+      // Configure audio mode for background playback
+      await Audio.setAudioModeAsync({
+        staysActiveInBackground: true,
+        playsInSilentModeIOS: true,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
+      });
       
       // Get audio URL
       let audioUri = track.audio_url;
