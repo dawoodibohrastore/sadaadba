@@ -27,6 +27,7 @@ import {
   prepareAudioForRingtone,
   setAsRingtone,
   canSetRingtone,
+  getTrimInfoMessage,
 } from '../services/ringtoneService';
 
 const { width, height } = Dimensions.get('window');
