@@ -579,7 +579,7 @@ export default function PlayerScreen() {
               <View style={styles.ringtonePreviewDetails}>
                 <Text style={styles.ringtonePreviewTitle}>Ringtone Portion</Text>
                 <Text style={styles.ringtonePreviewTime}>
-                  {currentTrack?.preview_start !== undefined && currentTrack?.preview_end !== undefined
+                  {currentTrack?.preview_start != null && currentTrack?.preview_end != null
                     ? `${formatTime(currentTrack.preview_start * 1000)} - ${formatTime(currentTrack.preview_end * 1000)} (${formatRingtoneDuration((currentTrack.preview_end - currentTrack.preview_start) * 1000)})`
                     : `0:00 - ${formatTime(Math.min(30000, (currentTrack?.duration || 30) * 1000))} (${formatRingtoneDuration(Math.min(30000, (currentTrack?.duration || 30) * 1000))})`
                   }
