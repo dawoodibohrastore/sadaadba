@@ -223,11 +223,7 @@ export default function PlayerScreen() {
   
   // Ringtone Modal State
   const [showRingtoneModal, setShowRingtoneModal] = useState(false);
-  const [ringtoneStartTime, setRingtoneStartTime] = useState(0);
-  const [ringtoneEndTime, setRingtoneEndTime] = useState(MAX_RINGTONE_DURATION);
   const [isProcessingRingtone, setIsProcessingRingtone] = useState(false);
-  const [ringtoneSound, setRingtoneSound] = useState<Audio.Sound | null>(null);
-  const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
 
   // Show error alert if there's a playback error
   useEffect(() => {
