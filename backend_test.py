@@ -1,42 +1,45 @@
 #!/usr/bin/env python3
 """
-Backend API Tests for Sadaa Instrumentals - Preview Feature Testing
-Tests the preview functionality for premium instrumentals
+Backend API Testing for Ringtone Feature
+Tests all ringtone-related functionality in the Sadaa Instrumentals API
 """
 
 import requests
-import json
 import sys
-from typing import List, Dict, Any
+import json
+from datetime import datetime
+from typing import Dict, Any, Optional
 
-# Backend URL from environment
-BACKEND_URL = "https://simple-tone-db.preview.emergentagent.com/api"
+class RingtoneAPITester:
+    def __init__(self, base_url: str = "https://simple-tone-db.preview.emergentagent.com"):
+        self.base_url = base_url
+        self.tests_run = 0
+        self.tests_passed = 0
+        self.test_results = []
+        self.created_instrumental_id = None
 
-class TestResults:
-    def __init__(self):
-        self.passed = 0
-        self.failed = 0
-        self.errors = []
+    def log_test(self, name: str, success: bool, details: str = "", response_data: Any = None):
+        """Log test result"""
+        self.tests_run += 1
+        if success:
+            self.tests_passed += 1
+            
+        result = {
+            "test_name": name,
+            "success": success,
+            "details": details,
+            "response_data": response_data,
+            "timestamp": datetime.now().isoformat()
+        }
+        self.test_results.append(result)
         
-    def add_pass(self, test_name: str):
-        self.passed += 1
-        print(f"✅ PASS: {test_name}")
-        
-    def add_fail(self, test_name: str, error: str):
-        self.failed += 1
-        self.errors.append(f"{test_name}: {error}")
-        print(f"❌ FAIL: {test_name} - {error}")
-        
-    def summary(self):
-        total = self.passed + self.failed
-        print(f"\n{'='*60}")
-        print(f"TEST SUMMARY: {self.passed}/{total} tests passed")
-        if self.errors:
-            print(f"\nFAILED TESTS:")
-            for error in self.errors:
-                print(f"  - {error}")
-        print(f"{'='*60}")
-        return self.failed == 0
+        status = "✅ PASS" if success else "❌ FAIL"
+        print(f"{status} - {name}")
+        if details:
+            print(f"    Details: {details}")
+        if not success and response_data:
+            print(f"    Response: {response_data}")
+        print()
 
 def test_api_connection():
     """Test basic API connectivity"""
