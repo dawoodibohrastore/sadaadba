@@ -117,9 +117,11 @@ class SubscriptionCreate(BaseModel):
 # Using placeholder URLs - Replace with your Hostinger URLs
 
 SAMPLE_INSTRUMENTALS = [
-    # Featured Instrumentals
+    # Featured Instrumentals (multiple for carousel)
     {"title": "Mawla Ya Salli - Peaceful", "mood": "Spiritual", "duration": 245, "duration_formatted": "4:05", "is_premium": False, "is_featured": True, "thumbnail_color": "#4A3463", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3", "file_size": 4500000, "preview_start": 60, "preview_end": 90},
     {"title": "Nasheed of Dawn", "mood": "Calm", "duration": 312, "duration_formatted": "5:12", "is_premium": True, "is_featured": True, "thumbnail_color": "#2D5A4A", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3", "file_size": 5200000, "preview_start": 70, "preview_end": 100},
+    {"title": "Sacred Sunset Melody", "mood": "Soft", "duration": 280, "duration_formatted": "4:40", "is_premium": False, "is_featured": True, "thumbnail_color": "#8B4513", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3", "file_size": 4800000, "preview_start": 60, "preview_end": 90},
+    {"title": "Blessed Night Journey", "mood": "Spiritual", "duration": 350, "duration_formatted": "5:50", "is_premium": True, "is_featured": True, "thumbnail_color": "#1E3A5F", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3", "file_size": 6000000, "preview_start": 80, "preview_end": 110},
     
     # Free Instrumentals
     {"title": "Morning Dhikr", "mood": "Calm", "duration": 180, "duration_formatted": "3:00", "is_premium": False, "is_featured": False, "thumbnail_color": "#5A4A63", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3", "file_size": 3200000, "preview_start": 60, "preview_end": 90},
