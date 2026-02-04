@@ -223,6 +223,7 @@ export default function PlayerScreen() {
   const [showRingtoneModal, setShowRingtoneModal] = useState(false);
   const [isProcessingRingtone, setIsProcessingRingtone] = useState(false);
   const [ringtoneProgress, setRingtoneProgress] = useState(0);
+  const [downloadedRingtoneUri, setDownloadedRingtoneUri] = useState<string | null>(null);
 
   // Show error alert if there's a playback error
   useEffect(() => {
