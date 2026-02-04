@@ -231,21 +231,6 @@ export default function PlayerScreen() {
       Alert.alert('Playback Error', playbackError);
     }
   }, [playbackError]);
-  
-  // Ringtone: Get the preview start/end from track data
-  const getRingtoneRange = () => {
-    if (currentTrack?.preview_start != null && currentTrack?.preview_end != null) {
-      // Use preview times from track data (in seconds, convert to ms)
-      return {
-        startTime: currentTrack.preview_start * 1000,
-        endTime: currentTrack.preview_end * 1000,
-      };
-    }
-    // Fallback: use first 30 seconds if no preview defined
-    const trackDurationMs = (currentTrack?.duration || 30) * 1000;
-    const fallbackEnd = Math.min(30000, trackDurationMs);
-    return { startTime: 0, endTime: fallbackEnd };
-  };
 
   const handlePlayPause = async () => {
     if (isPlaying) {
