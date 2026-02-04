@@ -429,24 +429,33 @@ export const useAppStore = create<AppState>((set, get) => ({
       // Initialize audio if needed
       await audioPlayerService.initializeAudio();
       
-      // Play with status updates
-      await audioPlayerService.playAudio(audioUri, (status) => {
-        set({ 
-          playbackPosition: status.positionMillis,
-          playbackDuration: status.durationMillis || track.duration * 1000,
-          isPlaying: status.isPlaying,
-          isBuffering: status.isBuffering,
-        });
-        
-        if (status.didJustFinish) {
-          const { isLoopEnabled } = get();
-          if (isLoopEnabled) {
-            get().seekTo(0).then(() => get().resumeTrack());
-          } else {
-            get().playNext();
+      // Play with status updates and track info for lock screen
+      await audioPlayerService.playAudio(
+        audioUri, 
+        (status) => {
+          set({ 
+            playbackPosition: status.positionMillis,
+            playbackDuration: status.durationMillis || track.duration * 1000,
+            isPlaying: status.isPlaying,
+            isBuffering: status.isBuffering,
+          });
+          
+          if (status.didJustFinish) {
+            const { isLoopEnabled } = get();
+            if (isLoopEnabled) {
+              get().seekTo(0).then(() => get().resumeTrack());
+            } else {
+              get().playNext();
+            }
           }
+        },
+        0,
+        {
+          id: track.id,
+          title: track.title,
+          artist: `${track.mood} • Sadaa Instrumentals`,
         }
-      });
+      );
       
       set({ isPlaying: true, isBuffering: false });
       
