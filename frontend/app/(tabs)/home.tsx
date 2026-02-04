@@ -609,13 +609,34 @@ const styles = StyleSheet.create({
     marginTop: 10,
     borderRadius: 16,
     overflow: 'hidden',
-    elevation: 4,
+  },
+  featuredSlide: {
+    borderRadius: 16,
+    overflow: 'hidden',
   },
   featuredGradient: {
     padding: 20,
     minHeight: 160,
     flexDirection: 'row',
     justifyContent: 'space-between',
+    borderRadius: 16,
+  },
+  paginationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 12,
+    gap: 8,
+  },
+  paginationDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  paginationDotActive: {
+    width: 24,
+    backgroundColor: COLORS.accentBlue,
   },
   featuredContent: {
     flex: 1,
