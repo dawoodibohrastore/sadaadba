@@ -530,7 +530,7 @@ export default function PlayerScreen() {
         </View>
       </Modal>
 
-      {/* Ringtone Modal - Simplified (Auto-trim based on preview_start/preview_end) */}
+      {/* Ringtone Modal - Direct Download & Share (No Trimming) */}
       <Modal
         visible={showRingtoneModal}
         animationType="slide"
@@ -540,7 +540,7 @@ export default function PlayerScreen() {
         <View style={styles.ringtoneModalContainer}>
           <View style={styles.ringtoneModalContent}>
             <View style={styles.ringtoneModalHeader}>
-              <Text style={styles.ringtoneModalTitle}>Set as Ringtone</Text>
+              <Text style={styles.ringtoneModalTitle}>Save Ringtone</Text>
               <TouchableOpacity onPress={() => setShowRingtoneModal(false)}>
                 <Ionicons name="close" size={24} color="#2D2D2D" />
               </TouchableOpacity>
@@ -559,140 +559,155 @@ export default function PlayerScreen() {
               </View>
             </View>
 
-            {/* Ringtone Preview Info */}
-            <View style={styles.ringtonePreviewInfo}>
-              <Ionicons name="cut-outline" size={20} color="#4A3463" />
-              <View style={styles.ringtonePreviewDetails}>
-                <Text style={styles.ringtonePreviewTitle}>Ringtone Portion</Text>
-                <Text style={styles.ringtonePreviewTime}>
-                  {currentTrack?.preview_start != null && currentTrack?.preview_end != null
-                    ? `${formatTime(currentTrack.preview_start * 1000)} - ${formatTime(currentTrack.preview_end * 1000)} (${formatRingtoneDuration((currentTrack.preview_end - currentTrack.preview_start) * 1000)})`
-                    : `0:00 - ${formatTime(Math.min(30000, (currentTrack?.duration || 30) * 1000))} (${formatRingtoneDuration(Math.min(30000, (currentTrack?.duration || 30) * 1000))})`
-                  }
-                </Text>
+            {/* Ringtone Availability Info */}
+            {currentTrack?.ringtone ? (
+              <View style={styles.ringtonePreviewInfo}>
+                <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+                <View style={styles.ringtonePreviewDetails}>
+                  <Text style={styles.ringtonePreviewTitle}>Ringtone Available</Text>
+                  <Text style={styles.ringtonePreviewTime}>
+                    Ready to download and share
+                  </Text>
+                </View>
               </View>
-            </View>
-
-            {/* Platform Note */}
-            {Platform.OS === 'ios' && (
+            ) : (
               <View style={styles.ringtonePlatformNote}>
                 <Ionicons name="warning" size={16} color="#FF9800" />
                 <Text style={styles.ringtonePlatformText}>
-                  iOS doesn't allow apps to set ringtones directly. The audio will be downloaded for use in GarageBand.
+                  Ringtone not available for this track.
                 </Text>
               </View>
             )}
 
-            {/* Set Ringtone Button */}
-            <TouchableOpacity
-              style={[
-                styles.ringtoneSetButton,
-                isProcessingRingtone && styles.ringtoneSetButtonDisabled,
-              ]}
-              onPress={async () => {
-                if (!currentTrack) return;
-                
-                const ringtoneRange = getRingtoneRange();
-                
-                // Check platform
-                if (!canSetRingtone()) {
-                  Alert.alert(
-                    'iOS Limitation',
-                    'Apple doesn\'t allow apps to set ringtones directly.\n\nTo set a custom ringtone on iPhone, download the audio and use GarageBand to create a ringtone.',
-                    [
-                      { text: 'Cancel', style: 'cancel' },
-                      {
-                        text: 'Download Audio',
-                        onPress: async () => {
-                          const success = await downloadTrack(currentTrack);
-                          if (success) {
-                            Alert.alert('Downloaded', 'Audio saved for offline use.');
-                          }
-                          setShowRingtoneModal(false);
-                        },
-                      },
-                    ]
-                  );
-                  return;
-                }
-                
-                setIsProcessingRingtone(true);
-                setRingtoneProgress(0);
-                
-                try {
-                  // Pause current playback
-                  if (isPlaying) {
-                    await pauseTrack();
-                  }
+            {/* Platform Note for iOS */}
+            {Platform.OS === 'ios' && currentTrack?.ringtone && (
+              <View style={styles.ringtonePlatformNote}>
+                <Ionicons name="information-circle" size={16} color="#2196F3" />
+                <Text style={[styles.ringtonePlatformText, { color: '#2196F3' }]}>
+                  iOS doesn't allow apps to set ringtones directly. Download and use GarageBand to set as ringtone.
+                </Text>
+              </View>
+            )}
+
+            {/* Download Button */}
+            {currentTrack?.ringtone && (
+              <TouchableOpacity
+                style={[
+                  styles.ringtoneSetButton,
+                  isProcessingRingtone && styles.ringtoneSetButtonDisabled,
+                ]}
+                onPress={async () => {
+                  if (!currentTrack?.ringtone) return;
                   
-                  let audioUri = currentTrack.audio_url;
-                  const downloaded = downloadedTracks[currentTrack.id];
-                  if (downloaded) {
-                    audioUri = downloaded.localUri;
-                  }
-                  
-                  if (!audioUri) {
-                    Alert.alert('Error', 'Audio not available');
-                    return;
-                  }
-                  
-                  const trimSettings = { startTime: ringtoneRange.startTime, endTime: ringtoneRange.endTime };
-                  
-                  // Prepare (trim) the audio with progress updates
-                  const preparedFile = await prepareAudioForRingtone(
-                    audioUri,
-                    currentTrack.id,
-                    currentTrack.title,
-                    trimSettings,
-                    (progress) => setRingtoneProgress(progress)
-                  );
-                  
-                  if (preparedFile) {
-                    const result = await setAsRingtone(preparedFile, currentTrack.title, trimSettings);
-                    
-                    // Show detailed message with trim info
-                    const trimInfo = getTrimInfoMessage(trimSettings);
-                    Alert.alert(
-                      result.success ? 'Success' : 'Note',
-                      result.success 
-                        ? `Trimmed audio shared!\n\n${trimInfo}\n\nUse your device's file manager to set it as ringtone.`
-                        : result.message
-                    );
-                  } else {
-                    Alert.alert('Error', 'Failed to trim and prepare audio file');
-                  }
-                } catch (error) {
-                  console.error('Ringtone error:', error);
-                  Alert.alert('Error', 'Failed to create ringtone');
-                } finally {
-                  setIsProcessingRingtone(false);
+                  setIsProcessingRingtone(true);
                   setRingtoneProgress(0);
-                  setShowRingtoneModal(false);
-                }
-              }}
-              disabled={isProcessingRingtone}
-            >
-              {isProcessingRingtone ? (
-                <View style={styles.ringtoneProgressContainer}>
-                  <ActivityIndicator color="#FFFFFF" size="small" />
-                  <Text style={styles.ringtoneProgressText}>
-                    {ringtoneProgress < 0.3 
-                      ? 'Downloading...' 
-                      : ringtoneProgress < 0.9 
-                        ? `Trimming... ${Math.round(ringtoneProgress * 100)}%`
-                        : 'Finalizing...'
+                  
+                  try {
+                    const fileUri = await downloadRingtone(
+                      currentTrack.ringtone,
+                      currentTrack.id,
+                      currentTrack.title,
+                      (progress) => setRingtoneProgress(progress)
+                    );
+                    
+                    if (fileUri) {
+                      setDownloadedRingtoneUri(fileUri);
+                      Alert.alert(
+                        'Downloaded!',
+                        'Ringtone saved successfully. You can now share it.',
+                        [{ text: 'OK' }]
+                      );
+                    } else {
+                      Alert.alert('Error', 'Failed to download ringtone. Please try again.');
                     }
-                  </Text>
-                </View>
-              ) : (
-                <>
-                  <Ionicons name="cut" size={20} color="#FFFFFF" />
-                  <Text style={styles.ringtoneSetButtonText}>
-                    {Platform.OS === 'ios' ? 'Download for Ringtone' : 'Trim & Save Ringtone'}
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
+                  } catch (error) {
+                    console.error('Download error:', error);
+                    Alert.alert('Error', 'Failed to download ringtone.');
+                  } finally {
+                    setIsProcessingRingtone(false);
+                    setRingtoneProgress(0);
+                  }
+                }}
+                disabled={isProcessingRingtone}
+              >
+                {isProcessingRingtone ? (
+                  <View style={styles.ringtoneProgressContainer}>
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                    <Text style={styles.ringtoneProgressText}>
+                      Downloading... {Math.round(ringtoneProgress * 100)}%
+                    </Text>
+                  </View>
+                ) : (
+                  <>
+                    <Ionicons name="download" size={20} color="#FFFFFF" />
+                    <Text style={styles.ringtoneSetButtonText}>Download Ringtone</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
+
+            {/* Share Button */}
+            {currentTrack?.ringtone && (
+              <TouchableOpacity
+                style={[
+                  styles.ringtoneShareButton,
+                  isProcessingRingtone && styles.ringtoneSetButtonDisabled,
+                ]}
+                onPress={async () => {
+                  if (!currentTrack?.ringtone) return;
+                  
+                  setIsProcessingRingtone(true);
+                  setRingtoneProgress(0);
+                  
+                  try {
+                    // If already downloaded, share directly
+                    if (downloadedRingtoneUri) {
+                      const result = await shareRingtone(downloadedRingtoneUri, currentTrack.title);
+                      if (!result.success) {
+                        Alert.alert('Error', result.message);
+                      }
+                    } else {
+                      // Download and share
+                      const result = await downloadAndShareRingtone(
+                        currentTrack.ringtone,
+                        currentTrack.id,
+                        currentTrack.title,
+                        (progress) => setRingtoneProgress(progress)
+                      );
+                      
+                      if (result.fileUri) {
+                        setDownloadedRingtoneUri(result.fileUri);
+                      }
+                      
+                      if (!result.success) {
+                        Alert.alert('Error', result.message);
+                      }
+                    }
+                  } catch (error) {
+                    console.error('Share error:', error);
+                    Alert.alert('Error', 'Failed to share ringtone.');
+                  } finally {
+                    setIsProcessingRingtone(false);
+                    setRingtoneProgress(0);
+                  }
+                }}
+                disabled={isProcessingRingtone}
+              >
+                {isProcessingRingtone ? (
+                  <View style={styles.ringtoneProgressContainer}>
+                    <ActivityIndicator color="#4A3463" size="small" />
+                    <Text style={[styles.ringtoneProgressText, { color: '#4A3463' }]}>
+                      {ringtoneProgress < 0.9 ? `Downloading... ${Math.round(ringtoneProgress * 100)}%` : 'Sharing...'}
+                    </Text>
+                  </View>
+                ) : (
+                  <>
+                    <Ionicons name="share-social" size={20} color="#4A3463" />
+                    <Text style={styles.ringtoneShareButtonText}>Share Ringtone</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </Modal>
