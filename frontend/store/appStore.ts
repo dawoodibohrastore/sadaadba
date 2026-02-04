@@ -484,17 +484,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         previewEndTime: previewEnd,
       });
       
-      // Use expo-av for audio playback
-      const { Audio } = await import('expo-av');
-      
-      // Configure audio mode for background playback
-      await Audio.setAudioModeAsync({
-        staysActiveInBackground: true,
-        playsInSilentModeIOS: true,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
-      });
-      
       // Get audio URL
       let audioUri = track.audio_url;
       const downloaded = downloadedTracks[track.id];
@@ -507,41 +496,33 @@ export const useAppStore = create<AppState>((set, get) => ({
         return;
       }
       
-      // Unload previous sound if exists
-      const prevState = get() as any;
-      if (prevState._webSound) {
-        await prevState._webSound.unloadAsync();
-      }
+      // Use the new audio player service
+      const audioPlayerService = await import('../services/audioPlayerService');
       
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: audioUri },
-        { shouldPlay: false, progressUpdateIntervalMillis: 200, positionMillis: previewStart },
-        (status: any) => {
-          if (status.isLoaded) {
-            const { isPreviewMode, previewEndTime } = get();
-            
-            set({ 
-              playbackPosition: status.positionMillis,
-              playbackDuration: status.durationMillis || track.duration * 1000,
-              isPlaying: status.isPlaying,
-              isBuffering: status.isBuffering,
-            });
-            
-            // Stop at preview end time
-            if (isPreviewMode && status.positionMillis >= previewEndTime) {
-              get().stopPreview();
-            }
-            
-            if (status.didJustFinish) {
-              get().stopPreview();
-            }
-          }
+      // Initialize audio if needed
+      await audioPlayerService.initializeAudio();
+      
+      // Play with status updates, starting from preview start position
+      await audioPlayerService.playAudio(audioUri, (status) => {
+        const { isPreviewMode, previewEndTime } = get();
+        
+        set({ 
+          playbackPosition: status.positionMillis,
+          playbackDuration: status.durationMillis || track.duration * 1000,
+          isPlaying: status.isPlaying,
+          isBuffering: status.isBuffering,
+        });
+        
+        // Stop at preview end time
+        if (isPreviewMode && status.positionMillis >= previewEndTime) {
+          get().stopPreview();
         }
-      );
+        
+        if (status.didJustFinish) {
+          get().stopPreview();
+        }
+      }, previewStart);
       
-      // Store sound reference and start playing
-      (set as any)({ _webSound: sound });
-      await sound.playAsync();
       set({ isPlaying: true, isBuffering: false });
       
     } catch (error) {
@@ -551,22 +532,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   stopPreview: async () => {
-    const state = get() as any;
-    if (state._webSound) {
-      try {
-        await state._webSound.stopAsync();
-        await state._webSound.unloadAsync();
-      } catch (e) {
-        console.log('Error stopping preview:', e);
-      }
+    try {
+      const audioPlayerService = await import('../services/audioPlayerService');
+      await audioPlayerService.stopAudio();
+    } catch (e) {
+      console.log('Error stopping preview:', e);
     }
-    set({ 
-      isPlaying: false,
-      isPreviewMode: false,
-      previewStartTime: 0,
-      previewEndTime: 0,
-      _webSound: null,
-    });
+    set({ isPlaying: false, isPreviewMode: false, currentTrack: null });
   },
 
   pauseTrack: async () => {
