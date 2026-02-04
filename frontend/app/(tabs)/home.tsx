@@ -97,6 +97,13 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
+  
+  // Featured carousel state
+  const [currentFeaturedIndex, setCurrentFeaturedIndex] = useState(0);
+  const featuredCarouselRef = useRef<FlatList>(null);
+  const autoSlideTimer = useRef<NodeJS.Timeout | null>(null);
+  const CAROUSEL_WIDTH = width - 40; // Account for margins
+  const AUTO_SLIDE_INTERVAL = 4000; // 4 seconds
 
   useEffect(() => {
     const loadData = async () => {
