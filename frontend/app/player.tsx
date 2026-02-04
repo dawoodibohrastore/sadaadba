@@ -1073,6 +1073,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 12,
     gap: 10,
+    marginBottom: 12,
   },
   ringtoneSetButtonDisabled: {
     backgroundColor: '#CCCCCC',
@@ -1081,6 +1082,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  ringtoneShareButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    borderColor: '#4A3463',
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 10,
+  },
+  ringtoneShareButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#4A3463',
   },
   ringtoneProgressContainer: {
     flexDirection: 'row',
