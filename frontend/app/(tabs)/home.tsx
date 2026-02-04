@@ -229,18 +229,27 @@ export default function HomeScreen() {
   const freeInstrumentals = instrumentals.filter(i => !i.is_premium);
   const premiumInstrumentals = instrumentals.filter(i => i.is_premium);
 
-  const renderFeaturedBanner = () => {
-    if (featuredInstrumentals.length === 0) return null;
-    const featured = featuredInstrumentals[0];
+  // Color palette for featured cards
+  const featuredColors: [string, string][] = [
+    [COLORS.accentBlue, '#3A4AE0'],
+    ['#6B4EE6', '#4E35B1'],
+    ['#E64E4E', '#B13535'],
+    ['#4ECBE6', '#35A8B1'],
+    ['#E6A54E', '#B18135'],
+    ['#4EE68A', '#35B167'],
+  ];
 
+  const renderFeaturedItem = ({ item, index }: { item: Instrumental; index: number }) => {
+    const colors = featuredColors[index % featuredColors.length];
+    
     return (
       <TouchableOpacity
-        style={styles.featuredContainer}
-        onPress={() => handleTrackPress(featured)}
+        style={[styles.featuredSlide, { width: CAROUSEL_WIDTH }]}
+        onPress={() => handleTrackPress(item)}
         activeOpacity={0.9}
       >
         <LinearGradient
-          colors={[COLORS.accentBlue, '#3A4AE0']}
+          colors={colors}
           style={styles.featuredGradient}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
@@ -250,12 +259,12 @@ export default function HomeScreen() {
               <Ionicons name="star" size={12} color={COLORS.accentGold} />
               <Text style={styles.featuredBadgeText}>FEATURED</Text>
             </View>
-            <Text style={styles.featuredTitle}>{featured.title}</Text>
+            <Text style={styles.featuredTitle} numberOfLines={2}>{item.title}</Text>
             <View style={styles.featuredMeta}>
               <View style={styles.moodTag}>
-                <Text style={styles.moodTagText}>{featured.mood}</Text>
+                <Text style={styles.moodTagText}>{item.mood}</Text>
               </View>
-              <Text style={styles.featuredDuration}>{featured.duration_formatted}</Text>
+              <Text style={styles.featuredDuration}>{item.duration_formatted}</Text>
             </View>
             <View style={styles.playButtonContainer}>
               <View style={styles.playButton}>
@@ -269,6 +278,55 @@ export default function HomeScreen() {
           </View>
         </LinearGradient>
       </TouchableOpacity>
+    );
+  };
+
+  const renderFeaturedBanner = () => {
+    if (featuredInstrumentals.length === 0) return null;
+
+    return (
+      <View style={styles.featuredContainer}>
+        <FlatList
+          ref={featuredCarouselRef}
+          data={featuredInstrumentals}
+          renderItem={renderFeaturedItem}
+          keyExtractor={(item) => item.id}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          onMomentumScrollEnd={handleCarouselScroll}
+          snapToInterval={CAROUSEL_WIDTH}
+          decelerationRate="fast"
+          snapToAlignment="start"
+          getItemLayout={(data, index) => ({
+            length: CAROUSEL_WIDTH,
+            offset: CAROUSEL_WIDTH * index,
+            index,
+          })}
+        />
+        
+        {/* Pagination dots */}
+        {featuredInstrumentals.length > 1 && (
+          <View style={styles.paginationContainer}>
+            {featuredInstrumentals.map((_, index) => (
+              <TouchableOpacity
+                key={index}
+                style={[
+                  styles.paginationDot,
+                  currentFeaturedIndex === index && styles.paginationDotActive,
+                ]}
+                onPress={() => {
+                  setCurrentFeaturedIndex(index);
+                  featuredCarouselRef.current?.scrollToIndex({
+                    index,
+                    animated: true,
+                  });
+                }}
+              />
+            ))}
+          </View>
+        )}
+      </View>
     );
   };
 
