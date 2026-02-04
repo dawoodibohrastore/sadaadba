@@ -34,6 +34,7 @@ class Instrumental(BaseModel):
     is_premium: bool = False
     is_featured: bool = False
     audio_url: Optional[str] = None  # Hostinger or any URL
+    ringtone: Optional[str] = None  # Direct ringtone URL for download/share
     thumbnail_color: str = "#4A3463"
     file_size: int = 0
     play_count: int = 0
@@ -50,6 +51,7 @@ class InstrumentalCreate(BaseModel):
     is_premium: bool = False
     is_featured: bool = False
     audio_url: Optional[str] = None
+    ringtone: Optional[str] = None
     thumbnail_color: str = "#4A3463"
     file_size: int = 0
     preview_start: Optional[int] = None
@@ -63,6 +65,7 @@ class InstrumentalUpdate(BaseModel):
     is_premium: Optional[bool] = None
     is_featured: Optional[bool] = None
     audio_url: Optional[str] = None
+    ringtone: Optional[str] = None
     thumbnail_color: Optional[str] = None
     file_size: Optional[int] = None
     preview_start: Optional[int] = None
@@ -118,8 +121,8 @@ class SubscriptionCreate(BaseModel):
 
 SAMPLE_INSTRUMENTALS = [
     # Featured Instrumentals (multiple for carousel)
-    {"title": "Mawla Ya Salli - Peaceful", "mood": "Spiritual", "duration": 245, "duration_formatted": "4:05", "is_premium": False, "is_featured": True, "thumbnail_color": "#4A3463", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3", "file_size": 4500000, "preview_start": 60, "preview_end": 90},
-    {"title": "Nasheed of Dawn", "mood": "Calm", "duration": 312, "duration_formatted": "5:12", "is_premium": True, "is_featured": True, "thumbnail_color": "#2D5A4A", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3", "file_size": 5200000, "preview_start": 70, "preview_end": 100},
+    {"title": "Mawla Ya Salli - Peaceful", "mood": "Spiritual", "duration": 245, "duration_formatted": "4:05", "is_premium": False, "is_featured": True, "thumbnail_color": "#4A3463", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3", "ringtone": "https://azjankari.in/audio/song2.mp3", "file_size": 4500000, "preview_start": 60, "preview_end": 90},
+    {"title": "Nasheed of Dawn", "mood": "Calm", "duration": 312, "duration_formatted": "5:12", "is_premium": True, "is_featured": True, "thumbnail_color": "#2D5A4A", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3", "ringtone": "https://azjankari.in/audio/song2.mp3", "file_size": 5200000, "preview_start": 70, "preview_end": 100},
     {"title": "Sacred Sunset Melody", "mood": "Soft", "duration": 280, "duration_formatted": "4:40", "is_premium": False, "is_featured": True, "thumbnail_color": "#8B4513", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3", "file_size": 4800000, "preview_start": 60, "preview_end": 90},
     {"title": "Blessed Night Journey", "mood": "Spiritual", "duration": 350, "duration_formatted": "5:50", "is_premium": True, "is_featured": True, "thumbnail_color": "#1E3A5F", "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3", "file_size": 6000000, "preview_start": 80, "preview_end": 110},
     
