@@ -542,25 +542,31 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   pauseTrack: async () => {
-    const state = get() as any;
-    if (state._webSound) {
-      await state._webSound.pauseAsync();
+    try {
+      const audioPlayerService = await import('../services/audioPlayerService');
+      await audioPlayerService.pauseAudio();
+    } catch (e) {
+      console.log('Error pausing:', e);
     }
     set({ isPlaying: false });
   },
 
   resumeTrack: async () => {
-    const state = get() as any;
-    if (state._webSound) {
-      await state._webSound.playAsync();
+    try {
+      const audioPlayerService = await import('../services/audioPlayerService');
+      await audioPlayerService.resumeAudio();
+    } catch (e) {
+      console.log('Error resuming:', e);
     }
     set({ isPlaying: true });
   },
 
   seekTo: async (position: number) => {
-    const state = get() as any;
-    if (state._webSound) {
-      await state._webSound.setPositionAsync(position);
+    try {
+      const audioPlayerService = await import('../services/audioPlayerService');
+      await audioPlayerService.seekTo(position);
+    } catch (e) {
+      console.log('Error seeking:', e);
     }
     set({ playbackPosition: position });
   },
