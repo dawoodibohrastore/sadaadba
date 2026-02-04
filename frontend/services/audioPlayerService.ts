@@ -6,6 +6,7 @@ let isInitialized = false;
 let webSound: Audio.Sound | null = null;
 let statusInterval: NodeJS.Timeout | null = null;
 let currentStatusCallback: ((status: AudioStatus) => void) | null = null;
+let trackPlayerModule: any = null;
 
 export interface AudioStatus {
   isLoaded: boolean;
@@ -16,24 +17,44 @@ export interface AudioStatus {
   didJustFinish: boolean;
 }
 
+// Safely import TrackPlayer only on native
+const getTrackPlayer = async () => {
+  if (Platform.OS === 'web') {
+    return null;
+  }
+  if (trackPlayerModule) {
+    return trackPlayerModule;
+  }
+  try {
+    trackPlayerModule = (await import('react-native-track-player')).default;
+    return trackPlayerModule;
+  } catch (e) {
+    console.log('TrackPlayer not available:', e);
+    return null;
+  }
+};
+
 // Initialize audio system
 export const initializeAudio = async (): Promise<boolean> => {
   if (isInitialized) return true;
   
   try {
     if (Platform.OS === 'web') {
-      // Web uses expo-av
+      // Web uses expo-av only
       await Audio.setAudioModeAsync({
         playsInSilentModeIOS: true,
         staysActiveInBackground: false,
       });
       isInitialized = true;
       console.log('Audio initialized for web (expo-av)');
-    } else {
-      // Native uses react-native-track-player
+      return true;
+    }
+    
+    // Native - try to use react-native-track-player
+    const TrackPlayer = await getTrackPlayer();
+    
+    if (TrackPlayer) {
       try {
-        const TrackPlayer = (await import('react-native-track-player')).default;
-        
         await TrackPlayer.setupPlayer({
           waitForBuffer: true,
         });
@@ -62,17 +83,20 @@ export const initializeAudio = async (): Promise<boolean> => {
         
         isInitialized = true;
         console.log('Audio initialized for native (react-native-track-player)');
+        return true;
       } catch (e) {
-        console.log('TrackPlayer setup error, falling back to expo-av:', e);
-        // Fallback to expo-av for native if track-player fails
-        await Audio.setAudioModeAsync({
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: true,
-          shouldDuckAndroid: true,
-        });
-        isInitialized = true;
+        console.log('TrackPlayer setup failed, using expo-av fallback:', e);
       }
     }
+    
+    // Fallback to expo-av for native
+    await Audio.setAudioModeAsync({
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: true,
+      shouldDuckAndroid: true,
+    });
+    isInitialized = true;
+    console.log('Audio initialized for native (expo-av fallback)');
     return true;
   } catch (error) {
     console.error('Failed to initialize audio:', error);
@@ -95,8 +119,8 @@ export const playAudio = async (
       await initializeAudio();
     }
     
+    // Web always uses expo-av
     if (Platform.OS === 'web') {
-      // Use expo-av for web
       const { sound } = await Audio.Sound.createAsync(
         { uri },
         { 
@@ -119,11 +143,14 @@ export const playAudio = async (
       );
       webSound = sound;
       return true;
-    } else {
-      // Use react-native-track-player for native
+    }
+    
+    // Native - try TrackPlayer first
+    const TrackPlayer = await getTrackPlayer();
+    
+    if (TrackPlayer) {
       try {
-        const TrackPlayer = (await import('react-native-track-player')).default;
-        const { State, Event, useProgress } = await import('react-native-track-player');
+        const { State } = await import('react-native-track-player');
         
         // Reset and add track
         await TrackPlayer.reset();
@@ -150,13 +177,14 @@ export const playAudio = async (
             const progress = await TrackPlayer.getProgress();
             
             if (currentStatusCallback) {
+              const isFinished = state === State.Stopped && progress.position >= progress.duration - 1;
               currentStatusCallback({
                 isLoaded: true,
                 isPlaying: state === State.Playing,
                 isBuffering: state === State.Buffering || state === State.Loading,
                 positionMillis: (progress.position || 0) * 1000,
                 durationMillis: (progress.duration || 0) * 1000,
-                didJustFinish: state === State.Stopped && progress.position >= progress.duration - 1,
+                didJustFinish: isFinished,
               });
             }
           } catch (e) {
@@ -167,31 +195,32 @@ export const playAudio = async (
         return true;
       } catch (e) {
         console.log('TrackPlayer play error, using expo-av fallback:', e);
-        // Fallback to expo-av
-        const { sound } = await Audio.Sound.createAsync(
-          { uri },
-          { 
-            shouldPlay: true, 
-            positionMillis: startPosition, 
-            progressUpdateIntervalMillis: 500 
-          },
-          (status: any) => {
-            if (status.isLoaded && currentStatusCallback) {
-              currentStatusCallback({
-                isLoaded: true,
-                isPlaying: status.isPlaying,
-                isBuffering: status.isBuffering || false,
-                positionMillis: status.positionMillis || 0,
-                durationMillis: status.durationMillis || 0,
-                didJustFinish: status.didJustFinish || false,
-              });
-            }
-          }
-        );
-        webSound = sound;
-        return true;
       }
     }
+    
+    // Fallback to expo-av for native
+    const { sound } = await Audio.Sound.createAsync(
+      { uri },
+      { 
+        shouldPlay: true, 
+        positionMillis: startPosition, 
+        progressUpdateIntervalMillis: 500 
+      },
+      (status: any) => {
+        if (status.isLoaded && currentStatusCallback) {
+          currentStatusCallback({
+            isLoaded: true,
+            isPlaying: status.isPlaying,
+            isBuffering: status.isBuffering || false,
+            positionMillis: status.positionMillis || 0,
+            durationMillis: status.durationMillis || 0,
+            didJustFinish: status.didJustFinish || false,
+          });
+        }
+      }
+    );
+    webSound = sound;
+    return true;
   } catch (error) {
     console.error('Error playing audio:', error);
     return false;
@@ -205,15 +234,19 @@ export const pauseAudio = async (): Promise<void> => {
       if (webSound) {
         await webSound.pauseAsync();
       }
-    } else {
+      return;
+    }
+    
+    const TrackPlayer = await getTrackPlayer();
+    if (TrackPlayer) {
       try {
-        const TrackPlayer = (await import('react-native-track-player')).default;
         await TrackPlayer.pause();
-      } catch (e) {
-        if (webSound) {
-          await webSound.pauseAsync();
-        }
-      }
+        return;
+      } catch (e) {}
+    }
+    
+    if (webSound) {
+      await webSound.pauseAsync();
     }
   } catch (error) {
     console.error('Error pausing audio:', error);
@@ -227,15 +260,19 @@ export const resumeAudio = async (): Promise<void> => {
       if (webSound) {
         await webSound.playAsync();
       }
-    } else {
+      return;
+    }
+    
+    const TrackPlayer = await getTrackPlayer();
+    if (TrackPlayer) {
       try {
-        const TrackPlayer = (await import('react-native-track-player')).default;
         await TrackPlayer.play();
-      } catch (e) {
-        if (webSound) {
-          await webSound.playAsync();
-        }
-      }
+        return;
+      } catch (e) {}
+    }
+    
+    if (webSound) {
+      await webSound.playAsync();
     }
   } catch (error) {
     console.error('Error resuming audio:', error);
@@ -249,15 +286,19 @@ export const seekTo = async (positionMillis: number): Promise<void> => {
       if (webSound) {
         await webSound.setPositionAsync(positionMillis);
       }
-    } else {
+      return;
+    }
+    
+    const TrackPlayer = await getTrackPlayer();
+    if (TrackPlayer) {
       try {
-        const TrackPlayer = (await import('react-native-track-player')).default;
         await TrackPlayer.seekTo(positionMillis / 1000);
-      } catch (e) {
-        if (webSound) {
-          await webSound.setPositionAsync(positionMillis);
-        }
-      }
+        return;
+      } catch (e) {}
+    }
+    
+    if (webSound) {
+      await webSound.setPositionAsync(positionMillis);
     }
   } catch (error) {
     console.error('Error seeking:', error);
@@ -274,28 +315,23 @@ export const stopAudio = async (): Promise<void> => {
     }
     currentStatusCallback = null;
     
-    if (Platform.OS === 'web') {
-      if (webSound) {
-        try {
-          await webSound.stopAsync();
-          await webSound.unloadAsync();
-        } catch (e) {}
-        webSound = null;
-      }
-    } else {
+    // Cleanup web sound
+    if (webSound) {
       try {
-        const TrackPlayer = (await import('react-native-track-player')).default;
-        await TrackPlayer.stop();
-        await TrackPlayer.reset();
-      } catch (e) {
-        // Fallback cleanup
-        if (webSound) {
-          try {
-            await webSound.stopAsync();
-            await webSound.unloadAsync();
-          } catch (e) {}
-          webSound = null;
-        }
+        await webSound.stopAsync();
+        await webSound.unloadAsync();
+      } catch (e) {}
+      webSound = null;
+    }
+    
+    // Cleanup TrackPlayer on native only
+    if (Platform.OS !== 'web') {
+      const TrackPlayer = await getTrackPlayer();
+      if (TrackPlayer) {
+        try {
+          await TrackPlayer.stop();
+          await TrackPlayer.reset();
+        } catch (e) {}
       }
     }
   } catch (error) {
@@ -311,18 +347,22 @@ export const getCurrentPosition = async (): Promise<number> => {
         const status = await webSound.getStatusAsync();
         return status.isLoaded ? status.positionMillis : 0;
       }
-    } else {
+      return 0;
+    }
+    
+    const TrackPlayer = await getTrackPlayer();
+    if (TrackPlayer) {
       try {
-        const TrackPlayer = (await import('react-native-track-player')).default;
         const progress = await TrackPlayer.getProgress();
         return (progress.position || 0) * 1000;
-      } catch (e) {
-        if (webSound) {
-          const status = await webSound.getStatusAsync();
-          return status.isLoaded ? status.positionMillis : 0;
-        }
-      }
+      } catch (e) {}
     }
+    
+    if (webSound) {
+      const status = await webSound.getStatusAsync();
+      return status.isLoaded ? status.positionMillis : 0;
+    }
+    
     return 0;
   } catch (error) {
     return 0;
@@ -337,19 +377,23 @@ export const isAudioPlaying = async (): Promise<boolean> => {
         const status = await webSound.getStatusAsync();
         return status.isLoaded && status.isPlaying;
       }
-    } else {
+      return false;
+    }
+    
+    const TrackPlayer = await getTrackPlayer();
+    if (TrackPlayer) {
       try {
-        const TrackPlayer = (await import('react-native-track-player')).default;
         const { State } = await import('react-native-track-player');
         const state = await TrackPlayer.getState();
         return state === State.Playing;
-      } catch (e) {
-        if (webSound) {
-          const status = await webSound.getStatusAsync();
-          return status.isLoaded && status.isPlaying;
-        }
-      }
+      } catch (e) {}
     }
+    
+    if (webSound) {
+      const status = await webSound.getStatusAsync();
+      return status.isLoaded && status.isPlaying;
+    }
+    
     return false;
   } catch (error) {
     return false;
