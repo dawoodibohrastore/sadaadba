@@ -1083,4 +1083,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
   },
+  ringtoneProgressContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  ringtoneProgressText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#FFFFFF',
+  },
 });
