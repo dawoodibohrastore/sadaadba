@@ -7,7 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as audioService from '../services/audioService';
 import { checkIsOnline, subscribeToNetworkChanges } from '../services/networkService';
 
-const API_BASE = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:8001';
+const API_BASE = 'https://sada-backend.onrender.com';
 
 // Storage keys for offline data
 const STORAGE_KEYS = {
@@ -274,10 +274,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         
         const subResponse = await axios.get(`${API_BASE}/api/subscription/status/${user.id}`);
         set({ user, isSubscribed: subResponse.data.is_subscribed });
-        
-        try {
-          await axios.post(`${API_BASE}/api/seed`);
-        } catch (e) {}
+      
         
         await get().fetchFeaturedInstrumentals();
         await get().fetchInstrumentals();
