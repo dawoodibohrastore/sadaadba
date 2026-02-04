@@ -28,6 +28,7 @@ export interface Instrumental {
   is_premium: boolean;
   is_featured: boolean;
   audio_url: string | null;
+  ringtone: string | null;  // Direct ringtone URL for download/share
   thumbnail_color: string;
   file_size: number;
   play_count: number;
