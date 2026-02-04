@@ -633,7 +633,14 @@ export default function PlayerScreen() {
                 }
                 
                 setIsProcessingRingtone(true);
+                setRingtoneProgress(0);
+                
                 try {
+                  // Pause current playback
+                  if (isPlaying) {
+                    await pauseTrack();
+                  }
+                  
                   let audioUri = currentTrack.audio_url;
                   const downloaded = downloadedTracks[currentTrack.id];
                   if (downloaded) {
@@ -647,11 +654,13 @@ export default function PlayerScreen() {
                   
                   const trimSettings = { startTime: ringtoneRange.startTime, endTime: ringtoneRange.endTime };
                   
+                  // Prepare (trim) the audio with progress updates
                   const preparedFile = await prepareAudioForRingtone(
                     audioUri,
                     currentTrack.id,
                     currentTrack.title,
-                    trimSettings
+                    trimSettings,
+                    (progress) => setRingtoneProgress(progress)
                   );
                   
                   if (preparedFile) {
@@ -662,29 +671,40 @@ export default function PlayerScreen() {
                     Alert.alert(
                       result.success ? 'Success' : 'Note',
                       result.success 
-                        ? `Audio shared successfully!\n\n${trimInfo}\n\nUse your device's file manager to set it as ringtone.`
+                        ? `Trimmed audio shared!\n\n${trimInfo}\n\nUse your device's file manager to set it as ringtone.`
                         : result.message
                     );
                   } else {
-                    Alert.alert('Error', 'Failed to prepare audio file');
+                    Alert.alert('Error', 'Failed to trim and prepare audio file');
                   }
                 } catch (error) {
                   console.error('Ringtone error:', error);
-                  Alert.alert('Error', 'Failed to set ringtone');
+                  Alert.alert('Error', 'Failed to create ringtone');
                 } finally {
                   setIsProcessingRingtone(false);
+                  setRingtoneProgress(0);
                   setShowRingtoneModal(false);
                 }
               }}
               disabled={isProcessingRingtone}
             >
               {isProcessingRingtone ? (
-                <ActivityIndicator color="#FFFFFF" />
+                <View style={styles.ringtoneProgressContainer}>
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                  <Text style={styles.ringtoneProgressText}>
+                    {ringtoneProgress < 0.3 
+                      ? 'Downloading...' 
+                      : ringtoneProgress < 0.9 
+                        ? `Trimming... ${Math.round(ringtoneProgress * 100)}%`
+                        : 'Finalizing...'
+                    }
+                  </Text>
+                </View>
               ) : (
                 <>
-                  <Ionicons name="notifications" size={20} color="#FFFFFF" />
+                  <Ionicons name="cut" size={20} color="#FFFFFF" />
                   <Text style={styles.ringtoneSetButtonText}>
-                    {Platform.OS === 'ios' ? 'Download for Ringtone' : 'Set as Ringtone'}
+                    {Platform.OS === 'ios' ? 'Download for Ringtone' : 'Trim & Save Ringtone'}
                   </Text>
                 </>
               )}
