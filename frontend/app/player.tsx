@@ -22,12 +22,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { useAppStore } from '../store/appStore';
 import {
-  formatTime,
-  formatDuration as formatRingtoneDuration,
-  prepareAudioForRingtone,
-  setAsRingtone,
+  downloadAndShareRingtone,
+  downloadRingtone,
+  shareRingtone,
   canSetRingtone,
-  getTrimInfoMessage,
 } from '../services/ringtoneService';
 
 const { width, height } = Dimensions.get('window');
